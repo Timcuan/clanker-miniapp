@@ -27,23 +27,23 @@ npm run build
 case $ENVIRONMENT in
     "staging")
         echo "🔧 Deploying to staging..."
-        vercel --scope clanker-miniapp --env NEXT_PUBLIC_PLATFORM=telegram-staging
+        npx netlify deploy --dir=.next --env NEXT_PUBLIC_PLATFORM=telegram-staging
         # Update Telegram bot commands for staging
         curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setMyCommands" \
             -H "Content-Type: application/json" \
             -d '{
                 "commands": [
-                    {"command": "start", "description": "🚀 Start deploying tokens"},
-                    {"command": "deploy", "description": "📦 Quick deploy"},
-                    {"command": "history", "description": "📜 View deployments"},
-                    {"command": "help", "description": "❓ Get help"}
+                    {"command": "start", "description": "Start deploying tokens"},
+                    {"command": "deploy", "description": "Quick deploy"},
+                    {"command": "history", "description": "View deployments"},
+                    {"command": "help", "description": "Get help"}
                 ],
                 "scope": {"type": "default"}
             }'
         ;;
     "production")
         echo "🎯 Deploying to production..."
-        vercel --scope clanker-miniapp --prod --env NEXT_PUBLIC_PLATFORM=telegram
+        npx netlify deploy --prod --dir=.next --env NEXT_PUBLIC_PLATFORM=telegram
         # Update Telegram bot commands for production
         curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setMyCommands" \
             -H "Content-Type: application/json" \
