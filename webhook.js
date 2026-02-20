@@ -1,5 +1,5 @@
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-miniapp.pages.dev';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
 const ADMIN_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(id => parseInt(id.trim()));
 
 function isAdmin(userId) {

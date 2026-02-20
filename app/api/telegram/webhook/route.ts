@@ -10,7 +10,7 @@ import {
 import { authorizeUser, isUserAuthorized, initDatabase, findUserByTelegramId } from '@/lib/db/turso';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-miniapp.pages.dev';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
 
 interface TelegramUpdate {
   update_id: number;

@@ -27,7 +27,7 @@ npm run build
 case $ENVIRONMENT in
     "staging")
         echo "🔧 Deploying to staging..."
-        npx netlify deploy --dir=.next --env NEXT_PUBLIC_PLATFORM=telegram-staging
+        npx netlify deploy --dir=.next
         # Update Telegram bot commands for staging
         curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setMyCommands" \
             -H "Content-Type: application/json" \
@@ -43,7 +43,7 @@ case $ENVIRONMENT in
         ;;
     "production")
         echo "🎯 Deploying to production..."
-        npx netlify deploy --prod --dir=.next --env NEXT_PUBLIC_PLATFORM=telegram
+        npx netlify deploy --prod --dir=.next
         # Update Telegram bot commands for production
         curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setMyCommands" \
             -H "Content-Type: application/json" \
@@ -66,7 +66,7 @@ esac
 
 # Set Telegram WebApp Menu Button
 echo "🔘 Setting MiniApp Menu Button..."
-WEBHOOK_URL="https://clanker-miniapp.pages.dev" # Replace with your actual production domain
+WEBHOOK_URL="https://clanker-terminal.netlify.app" # Pointing to Netlify
 curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setChatMenuButton" \
     -H "Content-Type: application/json" \
     -d "{
