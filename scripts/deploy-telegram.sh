@@ -6,7 +6,7 @@
 set -e
 
 ENVIRONMENT=${1:-staging}
-echo "🚀 Deploying Clanker MiniApp for Telegram ($ENVIRONMENT)..."
+echo "Deploying Clanker MiniApp for Telegram ($ENVIRONMENT)..."
 
 # Check if required environment variables are set
 if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
@@ -20,7 +20,7 @@ if [ -z "$NEXT_PUBLIC_TELEGRAM_BOT_USERNAME" ]; then
 fi
 
 # Build the application
-echo "📦 Building application..."
+echo "Building application..."
 npm run build
 
 # Environment-specific configurations
@@ -49,11 +49,11 @@ case $ENVIRONMENT in
             -H "Content-Type: application/json" \
             -d '{
                 "commands": [
-                    {"command": "start", "description": "🚀 Main Terminal Overview"},
-                    {"command": "deploy", "description": "➕ Start Token Deployment"},
-                    {"command": "history", "description": "📜 Your Token History"},
-                    {"command": "settings", "description": "⚙️ Manage Wallets & Prefs"},
-                    {"command": "help", "description": "❓ Get Help"}
+                    {"command": "start", "description": "Main Terminal Overview"},
+                    {"command": "deploy", "description": "Start Token Deployment"},
+                    {"command": "history", "description": "Your Token History"},
+                    {"command": "settings", "description": "Manage Wallets & Prefs"},
+                    {"command": "help", "description": "Get Help"}
                 ],
                 "scope": {"type": "default"}
             }'
@@ -72,7 +72,7 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setChatMenuButton"
     -d "{
         \"menu_button\": {
             \"type\": \"web_app\",
-            \"text\": \"🚀 Terminal\",
+            \"text\": \"Terminal\",
             \"web_app\": { \"url\": \"$WEBHOOK_URL\" }
         }
     }"
