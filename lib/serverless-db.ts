@@ -41,18 +41,12 @@ export interface SessionData {
   address: string;
   createdAt: number;
   expiresAt: number;
-  
+
   // Telegram auth fields
   privateKey?: string;
-  telegramId?: number;
-  telegramUserId?: number; // Legacy support
+  telegramUserId?: number;
   firstName?: string;
-  
-  // Farcaster auth fields
-  userId?: number;
-  fid?: number;
-  username?: string;
-  authType?: 'telegram' | 'farcaster-signature';
+  authType?: 'telegram';
 }
 
 // Encode session to encrypted string
@@ -67,12 +61,12 @@ export function decodeSession(encrypted: string): SessionData | null {
     const json = decrypt(encrypted);
     if (!json) return null;
     const data = JSON.parse(json) as SessionData;
-    
+
     // Check expiry
     if (data.expiresAt < Date.now()) {
       return null;
     }
-    
+
     return data;
   } catch (e) {
     console.error('Session decode failed:', e);
@@ -82,8 +76,8 @@ export function decodeSession(encrypted: string): SessionData | null {
 
 // Create new session data
 export function createSessionData(
-  privateKey: string, 
-  address: string, 
+  privateKey: string,
+  address: string,
   telegramUserId?: number
 ): SessionData {
   const now = Date.now();

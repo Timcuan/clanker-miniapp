@@ -12,7 +12,6 @@ export interface DbUser {
   wallet_address: string | null;
   access_code: string | null;
   encrypted_session: string | null;
-  platform?: 'telegram' | 'farcaster';
   last_active_at?: string;
   is_admin: number;
   is_authorized: number;
@@ -123,7 +122,6 @@ export async function initDatabase() {
   const migrationQueries = [
     "ALTER TABLE users ADD COLUMN encrypted_session TEXT",
     "ALTER TABLE users ADD COLUMN is_authorized INTEGER DEFAULT 0",
-    "ALTER TABLE users ADD COLUMN platform TEXT DEFAULT 'telegram'",
     "ALTER TABLE users ADD COLUMN last_active_at TEXT",
   ];
 
@@ -141,11 +139,9 @@ export async function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id INTEGER UNIQUE NOT NULL,
       username TEXT,
-      first_name TEXT,
       wallet_address TEXT,
       access_code TEXT,
       encrypted_session TEXT,
-      platform TEXT DEFAULT 'telegram',
       last_active_at TEXT,
       is_admin INTEGER DEFAULT 0,
       is_authorized INTEGER DEFAULT 0,
@@ -246,7 +242,6 @@ export async function updateUser(
     first_name?: string;
     wallet_address?: string | null;
     encrypted_session?: string | null;
-    platform?: 'telegram' | 'farcaster';
     last_active_at?: string;
     is_admin?: number;
     is_authorized?: number;
@@ -272,10 +267,6 @@ export async function updateUser(
     if (data.encrypted_session !== undefined) {
       updates.push('encrypted_session = ?');
       args.push(data.encrypted_session);
-    }
-    if (data.platform !== undefined) {
-      updates.push('platform = ?');
-      args.push(data.platform);
     }
     if (data.last_active_at !== undefined) {
       updates.push('last_active_at = ?');

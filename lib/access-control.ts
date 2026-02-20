@@ -19,63 +19,44 @@ if (PRIMARY_ADMIN_ID && !ADMIN_TELEGRAM_IDS.includes(PRIMARY_ADMIN_ID)) {
   ADMIN_TELEGRAM_IDS.push(PRIMARY_ADMIN_ID);
 }
 
-// Admin Farcaster FIDs (comma-separated in env)
-const ADMIN_FARCASTER_FIDS: number[] = (process.env.ADMIN_FARCASTER_FIDS || '')
-  .split(',')
-  .map(id => parseInt(id.trim(), 10))
-  .filter(id => !isNaN(id) && id > 0);
-
-// Platform type
-export type Platform = 'telegram' | 'farcaster';
-
-// User identifier (works for both platforms)
+// User identifier
 export interface UserIdentifier {
-  platform: Platform;
-  id: number;  // Telegram user ID or Farcaster FID
+  id: number;  // Telegram user ID
   username?: string;
 }
 
-// Check if a user is an admin (supports both platforms)
-export function isAdminUser(userId?: number, platform: Platform = 'telegram'): boolean {
+// Check if a user is an admin
+export function isAdminUser(userId?: number): boolean {
   if (!userId) return false;
 
   const numericId = Number(userId);
   if (isNaN(numericId)) return false;
 
   // Specific check for primary admin
-  if (platform === 'telegram' && numericId === PRIMARY_ADMIN_ID) return true;
-
-  if (platform === 'farcaster') {
-    return ADMIN_FARCASTER_FIDS.includes(numericId);
-  }
+  if (numericId === PRIMARY_ADMIN_ID) return true;
 
   const isIncluded = ADMIN_TELEGRAM_IDS.includes(numericId);
   if (!isIncluded) {
-    console.log(`[Access] Admin check failed for ${platform}:${numericId}. Primary is ${PRIMARY_ADMIN_ID}`);
+    console.log(`[Access] Admin check failed for Telegram:${numericId}. Primary is ${PRIMARY_ADMIN_ID}`);
   }
   return isIncluded;
 }
 
 // Grant access to a user
-export async function grantAccess(userId: number, platform: Platform = 'telegram'): Promise<void> {
-  if (platform === 'telegram') {
-    await authorizeUser(userId);
-    console.log(`[Access] Granted to Telegram:${userId}`);
-  }
+export async function grantAccess(userId: number): Promise<void> {
+  await authorizeUser(userId);
+  console.log(`[Access] Granted to Telegram:${userId}`);
 }
 
 // Revoke access from a user
-export async function revokeAccess(userId: number, platform: Platform = 'telegram'): Promise<void> {
-  if (platform === 'telegram') {
-    await unauthorizeUser(userId);
-    console.log(`[Access] Revoked from Telegram:${userId}`);
-  }
+export async function revokeAccess(userId: number): Promise<void> {
+  await unauthorizeUser(userId);
+  console.log(`[Access] Revoked from Telegram:${userId}`);
 }
 
 // Verify if user has valid access
 export async function verifyAccess(
-  userId?: number,
-  platform: Platform = 'telegram'
+  userId?: number
 ): Promise<{
   hasAccess: boolean;
   error?: string;
@@ -85,22 +66,20 @@ export async function verifyAccess(
   }
 
   // Admin ALWAYS has access regardless of DB state
-  if (isAdminUser(userId, platform)) {
+  if (isAdminUser(userId)) {
     return { hasAccess: true };
   }
 
   // Check database for authorization
-  if (platform === 'telegram') {
-    try {
-      const authorized = await isUserAuthorized(userId);
-      if (authorized) {
-        return { hasAccess: true };
-      }
-    } catch (dbError) {
-      console.error('[Access] DB unreachable during verification:', dbError);
-      // If DB is down, we deny access to non-admins as a safe default
-      return { hasAccess: false, error: 'Authorization service currently unavailable' };
+  try {
+    const authorized = await isUserAuthorized(userId);
+    if (authorized) {
+      return { hasAccess: true };
     }
+  } catch (dbError) {
+    console.error('[Access] DB unreachable during verification:', dbError);
+    // If DB is down, we deny access to non-admins as a safe default
+    return { hasAccess: false, error: 'Authorization service currently unavailable' };
   }
 
   return { hasAccess: false, error: 'Access denied' };
