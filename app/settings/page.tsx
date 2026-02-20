@@ -27,7 +27,7 @@ interface StoredWallet {
 export default function SettingsPage() {
   const router = useRouter();
   const { isTelegram } = useTelegramContext();
-  const { activeWalletAddress, setActiveWallet, connectWallet } = useWallet();
+  const { activeWalletAddress, setActiveWallet, connectWallet, customRpcUrl, updateRpcUrl, disconnectWallet } = useWallet();
 
   // Local state for managing wallets
   const [wallets, setWallets] = useState<StoredWallet[]>([]);
@@ -43,13 +43,15 @@ export default function SettingsPage() {
   // Preferences
   const [autoFill, setAutoFill] = useState(true);
   const [advancedMode, setAdvancedMode] = useState(false);
+  const [cloudSync, setCloudSync] = useState(false);
+  const [rpcInput, setRpcInput] = useState('');
   const [isPrefsLoaded, setIsPrefsLoaded] = useState(false);
 
   const fetchBalance = async (address: string) => {
     try {
       const client = createPublicClient({
         chain: base,
-        transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org')
+        transport: http(customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org')
       });
       const balance = await client.getBalance({ address: address as `0x${string}` });
       setBalances(prev => ({ ...prev, [address]: formatEther(balance) }));
@@ -73,19 +75,53 @@ export default function SettingsPage() {
         const parsed = JSON.parse(saved);
         if (parsed.autoFill !== undefined) setAutoFill(parsed.autoFill);
         if (parsed.advancedMode !== undefined) setAdvancedMode(parsed.advancedMode);
+        if (parsed.cloudSync !== undefined) setCloudSync(parsed.cloudSync);
       } catch (e) {
         console.error('Failed to load prefs');
       }
     }
+
+    // Attempt to load from CloudStorage if enabled previously
+    try {
+      // @ts-ignore
+      const tg = window.Telegram?.WebApp;
+      if (tg && tg.CloudStorage) {
+        tg.CloudStorage.getItem('clanker_prefs', (err: any, value?: string) => {
+          if (!err && value) {
+            try {
+              const parsed = JSON.parse(value);
+              if (parsed.autoFill !== undefined) setAutoFill(parsed.autoFill);
+              if (parsed.advancedMode !== undefined) setAdvancedMode(parsed.advancedMode);
+              if (parsed.cloudSync !== undefined) setCloudSync(parsed.cloudSync);
+            } catch (e) { }
+          }
+        });
+      }
+    } catch (e) { }
+
+    setRpcInput(customRpcUrl);
     setIsPrefsLoaded(true);
-  }, []);
+  }, [customRpcUrl]);
 
   // Save preferences
   useEffect(() => {
     if (isPrefsLoaded) {
-      localStorage.setItem('clanker_prefs', JSON.stringify({ autoFill, advancedMode }));
+      const prefs = { autoFill, advancedMode, cloudSync };
+      localStorage.setItem('clanker_prefs', JSON.stringify(prefs));
+
+      try {
+        // @ts-ignore
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.CloudStorage) {
+          if (cloudSync) {
+            tg.CloudStorage.setItem('clanker_prefs', JSON.stringify(prefs));
+          } else {
+            tg.CloudStorage.removeItem('clanker_prefs');
+          }
+        }
+      } catch (e) { }
     }
-  }, [autoFill, advancedMode, isPrefsLoaded]);
+  }, [autoFill, advancedMode, cloudSync, isPrefsLoaded]);
 
   // Load wallets from localStorage on mount
   useEffect(() => {
@@ -182,6 +218,26 @@ export default function SettingsPage() {
 
   const toggleKeyVisibility = (address: string) => {
     setShowKey(prev => ({ ...prev, [address]: !prev[address] }));
+  };
+
+  const handleClearData = async () => {
+    const check = prompt('🚨 DANGER: This will permanently wipe all your saved Private Keys, Preferences, and RPC configurations from this device. Type "CONFIRM" to proceed:');
+    if (check === 'CONFIRM') {
+      localStorage.clear();
+      try {
+        // @ts-ignore
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.CloudStorage) {
+          tg.CloudStorage.getKeys((err: any, keys?: string[]) => {
+            if (!err && keys) {
+              tg.CloudStorage.removeItems(keys);
+            }
+          });
+        }
+      } catch (e) { }
+      await disconnectWallet();
+      window.location.reload();
+    }
   };
 
   return (
@@ -356,7 +412,7 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => setAutoFill(!autoFill)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${autoFill ? 'bg-[#0052FF]' : 'bg-gray-200 dark:bg-gray-800'}`}
+                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${autoFill ? 'bg-[#0052FF]' : 'bg-gray-200 dark:bg-gray-800'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${autoFill ? 'left-5' : 'left-1'}`} />
               </button>
@@ -369,9 +425,77 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => setAdvancedMode(!advancedMode)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${advancedMode ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-800'}`}
+                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${advancedMode ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-800'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${advancedMode ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+
+            <div className="p-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                  Telegram Cloud Sync
+                  <div className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 font-mono text-[9px] text-[#0052FF] dark:text-blue-400 uppercase font-bold">Beta</div>
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Sync preferences across Telegram devices.<br /><span className="text-amber-500 dark:text-amber-400">Note: Private Keys are kept strictly local.</span></p>
+              </div>
+              <button
+                onClick={() => setCloudSync(!cloudSync)}
+                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${cloudSync ? 'bg-sky-500' : 'bg-gray-200 dark:bg-gray-800'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${cloudSync ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Network Preferences */}
+        <section>
+          <h2 className="font-mono text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Network Integration</h2>
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3 shadow-sm">
+            <div>
+              <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">Custom Base RPC URL</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Override the default Base public node for faster deployment speeds (e.g., Alchemy, QuickNode).</p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="url"
+                    value={rpcInput}
+                    onChange={e => setRpcInput(e.target.value)}
+                    placeholder="https://mainnet.base.org"
+                    className="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 font-mono text-xs sm:text-sm focus:border-[#0052FF] outline-none text-gray-800 dark:text-gray-200"
+                  />
+                </div>
+                <button
+                  onClick={() => { updateRpcUrl(rpcInput); hapticFeedback('success'); }}
+                  className="bg-[#0052FF] hover:bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-mono font-medium transition-colors shadow-sm"
+                >
+                  Save
+                </button>
+              </div>
+              {customRpcUrl && (
+                <div className="mt-2 text-[10px] font-mono flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3 h-3" /> Using custom endpoint
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Danger Zone */}
+        <section>
+          <h2 className="font-mono text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Danger Zone</h2>
+          <div className="bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900/50 p-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-red-600 dark:text-red-400">Factory Reset</h3>
+                <p className="text-xs text-red-500/80 dark:text-red-400/80 mt-1 max-w-xs">Irreversibly delete all local wallets, network settings, and user preferences from your device completely.</p>
+              </div>
+              <button
+                onClick={handleClearData}
+                className="bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all shadow-sm"
+              >
+                Clear Local Data
               </button>
             </div>
           </div>

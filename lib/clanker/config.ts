@@ -33,6 +33,8 @@ export interface BuildConfigOptions {
   salt?: `0x${string}`;
   // Custom static fee
   staticFeePercentage?: number;
+  // Custom RPC configuration
+  customRpcUrl?: string;
 }
 
 // Get platform-specific context

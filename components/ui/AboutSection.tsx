@@ -29,7 +29,7 @@ function FeatureCard({ icon, title, description, delay = 0, color }: FeatureCard
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.5 }}
       whileHover={{ y: -2 }}
-      className="group relative overflow-hidden rounded-xl bg-white border border-gray-100 p-3 sm:p-4 hover:shadow-lg hover:border-gray-200 transition-all duration-300"
+      className="group relative overflow-hidden rounded-xl bg-white dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 p-3 sm:p-4 hover:shadow-lg hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-300 backdrop-blur-sm"
     >
       <div className="relative z-10 flex items-start gap-2.5 sm:gap-3">
         <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl ${color} flex items-center justify-center shrink-0`}>
@@ -56,12 +56,12 @@ function StatCard({ value, label, delay = 0 }: StatCardProps) {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay, duration: 0.4 }}
-      className="text-center p-2.5 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border border-[#0052FF]/10"
+      className="text-center p-2.5 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-900/50 border border-[#0052FF]/10 dark:border-[#0052FF]/20 backdrop-blur-sm"
     >
-      <div className="font-display text-base sm:text-xl font-bold text-[#0052FF]">
+      <div className="font-display text-base sm:text-lg font-bold text-[#0052FF] dark:text-blue-400">
         {value}
       </div>
-      <div className="font-mono text-[9px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">{label}</div>
+      <div className="font-mono text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 uppercase tracking-wider font-bold">{label}</div>
     </motion.div>
   );
 }
@@ -113,10 +113,10 @@ export default function AboutSection() {
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", duration: 0.6 }}
-          className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-blue-50 border border-[#0052FF]/20"
+          className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-blue-50 dark:bg-blue-900/20 border border-[#0052FF]/20 dark:border-blue-500/30 shadow-sm"
         >
-          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0052FF]" />
-          <span className="font-mono text-[10px] sm:text-xs text-[#0052FF] font-medium">Powered by Clanker SDK</span>
+          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0052FF] dark:text-blue-400" />
+          <span className="font-mono text-[10px] sm:text-xs text-[#0052FF] dark:text-blue-400 font-bold uppercase tracking-wide">Powered by Clanker SDK</span>
         </motion.div>
 
         <h2 className="font-display text-base sm:text-lg font-bold text-gray-800 dark:text-gray-100">
@@ -153,23 +153,23 @@ export default function AboutSection() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8 }}
-        className="p-3 sm:p-4 rounded-xl bg-gray-50 border border-gray-100"
+        className="p-3 sm:p-5 rounded-xl bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 backdrop-blur-sm"
       >
-        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
-          <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0052FF]" />
-          <span className="font-mono text-[10px] sm:text-xs text-gray-500 font-medium">Tech Stack</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+          <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0052FF] dark:text-blue-400" />
+          <span className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Tech Stack</span>
         </div>
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap gap-2 sm:gap-2.5">
           {techStack.map((tech, index) => (
             <motion.div
               key={tech.name}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.9 + index * 0.1 }}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow"
             >
-              <span className="text-[#0052FF] [&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4">{tech.icon}</span>
-              <span className="font-mono text-[9px] sm:text-xs text-gray-600 dark:text-gray-300">{tech.name}</span>
+              <span className="text-[#0052FF] dark:text-blue-400 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4">{tech.icon}</span>
+              <span className="font-mono text-[10px] sm:text-xs text-gray-700 dark:text-gray-300 font-medium">{tech.name}</span>
             </motion.div>
           ))}
         </div>

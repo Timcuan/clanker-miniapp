@@ -28,6 +28,10 @@ interface WalletContextType {
   walletClient: string | null;
   publicClient: ReturnType<typeof createPublicClient>;
 
+  // Advanced Network settings
+  customRpcUrl: string;
+  updateRpcUrl: (url: string) => void;
+
   // Methods
   connectWallet: (privateKey: string, initData?: string) => Promise<{ success: boolean; error?: string }>;
   generateWallet: (initData?: string) => Promise<{ success: boolean; address?: string; privateKey?: string; error?: string }>;
@@ -94,13 +98,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null);
   const [activeWalletAddress, setActiveWalletAddress] = useState<string | null>(null);
+  const [customRpcUrl, setCustomRpcUrl] = useState<string>('');
   const initRef = useRef(false);
 
-  // Initialize viem clients
-  const publicClient = createPublicClient({
-    chain: base,
-    transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
-  });
+  // Initialize dynamic viem client
+  const publicClient = React.useMemo(() => {
+    return createPublicClient({
+      chain: base,
+      transport: http(customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+    });
+  }, [customRpcUrl]);
+
+  const updateRpcUrl = useCallback((url: string) => {
+    setCustomRpcUrl(url);
+    if (url.trim()) {
+      localStorage.setItem('clanker_rpc_url', url.trim());
+    } else {
+      localStorage.removeItem('clanker_rpc_url');
+    }
+  }, []);
 
   const [walletClient, setWalletClient] = useState<string | null>(null);
 
@@ -170,6 +186,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (savedActive) {
           setActiveWalletAddress(savedActive);
         }
+
+        // Load custom RPC
+        const savedRpc = localStorage.getItem('clanker_rpc_url');
+        if (savedRpc) {
+          setCustomRpcUrl(savedRpc);
+        }
+
       } catch (error) {
         console.error('Failed to check wallet connection:', error);
       } finally {
@@ -448,6 +471,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         walletClient,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         publicClient: publicClient as any,
+        customRpcUrl,
+        updateRpcUrl,
         connectWallet,
         disconnectWallet,
         checkConnection,

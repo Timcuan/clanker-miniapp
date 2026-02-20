@@ -95,7 +95,7 @@ export function CLICard({ children, title, className = '', onClick, hoverable = 
       onClick={onClick}
       whileHover={hoverable ? { scale: 1.01 } : {}}
       whileTap={hoverable ? { scale: 0.99 } : {}}
-      className={`relative bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md active:shadow-sm transition-all ${hoverable ? 'cursor-pointer' : ''} ${className}`}
+      className={`relative w-full text-left block bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md active:shadow-sm transition-all ${hoverable ? 'cursor-pointer' : ''} ${className}`}
     >
       {title && (
         <div className="px-3 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">

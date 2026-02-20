@@ -96,11 +96,7 @@ async function handleStart(userId: number, chatId: number, isAdmin: boolean, has
   // 3. The ONLY Launch Button (Consolidated Inline Button)
   const statusLabel = isAdmin ? 'Admin' : (hasAccess ? 'Authorized' : 'Restricted');
 
-  const commandsList = isAdmin
-    ? `\n\n<b>Commands:</b>\n/terminal - Launch Terminal\n/stats - System Stats\n/grant [id] - Authorize User\n/revoke [id] - Ban User`
-    : `\n\n<b>Commands:</b>\n/terminal - Launch Terminal\n/id - Show ID\n/help - Show guide`;
-
-  const welcomeText = `🚀 <b>UMKM Terminal v1.1.2</b>\n\nStatus: <b>${statusLabel}</b>${commandsList}\n\nClick the button below to launch your terminal.`;
+  const welcomeText = `🚀 <b>UMKM Terminal v1.1.2</b>\n\nStatus: <b>${statusLabel}</b>\n\nClick the button below to launch your terminal.`;
 
   const inlineButtons: InlineKeyboardButton[][] = [
     [{ text: "🖥 Launch Terminal", web_app: { url: APP_URL }, style: 'success' }]
@@ -201,8 +197,8 @@ export async function POST(request: NextRequest) {
         await sendMessage(chatId, `🆔 <b>User ID:</b> <code>${userId}</code>\n\nStatus: <b>${isAdmin ? 'Admin' : (hasAccess ? 'Authorized' : 'Restricted')}</b>`);
       } else if (text === 'Help' || text === '❓ Help' || text === '/help') {
         const helpText = isAdmin
-          ? `<b>Admin Controls:</b>\n/start - Menu\n/stats - System Stats\n/grant [id] - Authorize User\n/revoke [id] - Ban User`
-          : `<b>Commands:</b>\n/start - Open Menu\n/id - Show ID\n/help - Show this guide`;
+          ? `🛡️ <b>Admin Command Center</b>\n\n/start - Launch Menu\n/stats - System Analytics\n/grant [id] - Authorize User\n/revoke [id] - Remove Access`
+          : `📚 <b>UMKM Terminal Guide</b>\n\nThis is a private deployment terminal for Base.\n\n<b>🔒 How to gain access:</b>\n1. Type /id to get your Telegram User ID.\n2. Copy and send your ID to the Administrator.\n3. Wait for authorization confirmation.\n4. Type /start to launch the terminal once approved.\n\n<i>Use the menu button to access quick commands.</i>`;
         await sendMessage(chatId, helpText);
       } else if (text === 'Launch Terminal' || text === '🖥 Launch Terminal' || text === '/terminal') {
         // Handle "Launch Terminal" as text (fallback)

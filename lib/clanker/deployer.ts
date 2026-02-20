@@ -29,6 +29,7 @@ export interface DeployTokenConfig extends TokenInputData {
   telegramUser?: TelegramUser;
   telegramUserId?: number;
   messageId?: string;
+  customRpcUrl?: string;
 }
 
 export interface DeployResult {
@@ -41,13 +42,13 @@ export interface DeployResult {
 /**
  * Helper to create Clanker instance
  */
-function getClankerClient(privateKey: string) {
+function getClankerClient(privateKey: string, customRpcUrl?: string) {
   if (!privateKey.startsWith('0x') || privateKey.length !== 66) {
     throw new Error('Invalid private key format');
   }
 
   const account = privateKeyToAccount(privateKey as `0x${string}`);
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org';
+  const rpcUrl = customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org';
 
   const publicClient = createPublicClient({
     chain: base,
@@ -74,7 +75,7 @@ export async function deployToken(
   config: DeployTokenConfig
 ): Promise<DeployResult> {
   try {
-    const clanker = getClankerClient(privateKey);
+    const clanker = getClankerClient(privateKey, config.customRpcUrl);
 
     // Map DeployTokenConfig to buildTokenConfig options
     const inputData: TokenInputData = {

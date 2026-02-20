@@ -95,6 +95,7 @@ export class ClankerService {
         // Context
         platform: options.platform,
         telegramUserId: options.telegramUserId,
+        customRpcUrl: options.customRpcUrl,
       };
 
       if (options.simulate) {

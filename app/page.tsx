@@ -204,12 +204,13 @@ export default function HomePage() {
           {/* About Button */}
           <button
             onClick={() => setShowAbout(!showAbout)}
-            className={`p-2 rounded-xl transition-all ${showAbout
-              ? 'bg-[#0052FF] text-white shadow-lg shadow-[#0052FF]/20'
-              : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-xl transition-all font-mono text-xs font-semibold ${showAbout
+              ? 'bg-[#0052FF] text-white shadow-lg shadow-[#0052FF]/30'
+              : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700 shadow-sm'
               }`}
           >
             {showAbout ? <X className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+            <span className="hidden sm:inline">{showAbout ? 'Close' : 'About'}</span>
           </button>
 
           {isAuthenticated && (
@@ -219,7 +220,7 @@ export default function HomePage() {
               </div>
               <button
                 onClick={handleDisconnect}
-                className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -235,13 +236,13 @@ export default function HomePage() {
           <AnimatePresence>
             {showAbout && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="mb-4 relative z-50"
+                initial={{ opacity: 0, scale: 0.95, y: -20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -20 }}
+                transition={{ duration: 0.3, type: "spring", bounce: 0.4 }}
+                className="mb-4 relative z-50 w-full"
               >
-                <div className="rounded-2xl bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 p-4 sm:p-6 shadow-xl">
+                <div className="rounded-2xl bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl border border-gray-200/50 dark:border-gray-800/60 p-5 sm:p-8 shadow-2xl dark:shadow-blue-900/5">
                   <AboutSection />
                 </div>
               </motion.div>
