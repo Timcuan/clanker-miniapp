@@ -19,11 +19,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <TelegramProvider>
-      <AccessProvider>
-        <AccessGate>
-          <WalletProvider>{children}</WalletProvider>
-        </AccessGate>
-      </AccessProvider>
+      <WalletProvider>
+        <AccessProvider>
+          <AccessGate>{children}</AccessGate>
+        </AccessProvider>
+      </WalletProvider>
     </TelegramProvider>
   );
 }

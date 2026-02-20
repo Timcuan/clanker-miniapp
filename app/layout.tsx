@@ -53,7 +53,7 @@ export default function RootLayout({
         </ThemeProvider>
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
-          strategy="lazyOnload"
+          strategy="beforeInteractive"
         />
       </body>
     </html>

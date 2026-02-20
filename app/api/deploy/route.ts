@@ -32,7 +32,7 @@ const DeploySchema = z.object({
     })).optional(),
     tokenAdmin: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
     rewardRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-    creatorReward: z.number().min(0).max(80),
+    creatorReward: z.number().min(0).max(100),
     feeType: z.enum(['dynamic', 'static', 'degen', 'low']),
     poolPosition: z.enum(['Standard', 'Project']),
     mevProtection: z.nativeEnum(MevModuleType),

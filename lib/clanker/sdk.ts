@@ -66,7 +66,7 @@ export class ClankerService {
   // Deploy Token
   async deployToken(
     privateKey: string,
-    input: Omit<TokenInputData, 'tokenAdmin' | 'rewardRecipient'>,
+    input: TokenInputData,
     options: BuildConfigOptions & { simulate?: boolean } = {}
   ): Promise<DeployResult> {
     try {
@@ -80,8 +80,8 @@ export class ClankerService {
       // Construct full config for deployer
       const deployConfig: DeployTokenConfig = {
         ...input,
-        tokenAdmin: userAddress,
-        rewardRecipient: userAddress, // Default to user, can be overridden if input had it (but input type omits it here)
+        tokenAdmin: input.tokenAdmin || userAddress,
+        rewardRecipient: input.rewardRecipient || userAddress,
 
         // Map options
         feeType: options.feeType || DEFAULT_CONFIG.feeType,

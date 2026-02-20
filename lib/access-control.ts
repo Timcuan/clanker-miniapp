@@ -76,6 +76,7 @@ export async function verifyAccess(
     return { hasAccess: false, error: 'Authorization service currently unavailable' };
   }
 
+  console.log('[Access] Access denied for user:', userId);
   return { hasAccess: false, error: 'Access denied' };
 }
 

@@ -109,12 +109,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (initRef.current) return;
     initRef.current = true;
 
-    const init = async () => {
+    const init = async (retries = 10) => {
       try {
-        // Get Telegram user ID first
-        const tgUserId = getTelegramUserId();
+        console.log(`[WalletContext] Initializing... (${retries} retries)`);
+        let tgUserId = getTelegramUserId();
+
+        if (!tgUserId && retries > 0) {
+          console.log(`[WalletContext] Waiting for Telegram User ID... (${retries} retries left)`);
+          setTimeout(() => init(retries - 1), 500);
+          return;
+        }
+
         setTelegramUserId(tgUserId);
 
+        // 2. Initial Session Check
         const apiUrl = buildApiUrl(tgUserId);
         const response = await fetch(apiUrl, {
           credentials: 'include',
@@ -137,6 +145,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             setSessionInfo(data.session);
           }
         }
+
         // Load active wallet
         const savedActive = localStorage.getItem('clanker_active_wallet');
         if (savedActive) {

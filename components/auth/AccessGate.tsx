@@ -5,14 +5,19 @@ import { Shield, Lock, AlertCircle } from 'lucide-react';
 import { useAccess } from '@/contexts/AccessContext';
 import { useTelegramContext } from '@/components/layout/TelegramProvider';
 import ClankerLogo from '@/components/ui/ClankerLogo';
+import { usePathname } from 'next/navigation';
 
 interface AccessGateProps {
   children: React.ReactNode;
 }
 
+// Routes that MUST have access/admin rights to view
+const PROTECTED_ROUTES = ['/deploy', '/history', '/settings'];
+
 export default function AccessGate({ children }: AccessGateProps) {
   const { hasAccess, isAdmin, isChecking, isInitialized } = useAccess();
   const { user } = useTelegramContext();
+  const pathname = usePathname();
 
   // Show loading while checking access
   if (!isInitialized || isChecking) {
@@ -37,12 +42,18 @@ export default function AccessGate({ children }: AccessGateProps) {
     );
   }
 
-  // Bypassed if has access OR is admin
-  if (hasAccess || isAdmin) {
+  // Check if current route is in the protected list
+  // Sub-paths like /deploy/confirm are also protected
+  const isProtectedRoute = PROTECTED_ROUTES.some(route =>
+    pathname === route || pathname?.startsWith(`${route}/`)
+  );
+
+  // Bypassed if has access OR is admin OR the route is not protected (e.g. Home page / login)
+  if (hasAccess || isAdmin || !isProtectedRoute) {
     return <>{children}</>;
   }
 
-  // Show access denied message (Hardened: No manual entry)
+  // Show access denied message for protected routes
   return (
     <div className="min-h-[100dvh] flex flex-col bg-gradient-to-b from-white via-blue-50/30 to-white relative overflow-hidden">
       {/* Background decorations */}
@@ -82,7 +93,7 @@ export default function AccessGate({ children }: AccessGateProps) {
             <div className="flex flex-col items-center gap-2">
               <Shield className="w-8 h-8 text-[#0052FF]/20" />
               <p className="font-mono text-xs text-gray-500 px-4">
-                Your account is not authorized to access this terminal.
+                Your account is not authorized to access this section.
               </p>
             </div>
 
@@ -99,6 +110,19 @@ export default function AccessGate({ children }: AccessGateProps) {
                 Send your <b>System ID</b> to the administrator via Telegram to request access.
               </p>
             </div>
+
+            <button
+              onClick={() => useAccess().checkAccess()}
+              className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black transition-colors"
+            >
+              Re-verify Access
+            </button>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="w-full py-3 bg-white text-gray-600 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors mt-2"
+            >
+              Return Home
+            </button>
           </motion.div>
 
           <motion.p
@@ -107,7 +131,7 @@ export default function AccessGate({ children }: AccessGateProps) {
             transition={{ delay: 0.4 }}
             className="text-center mt-8 font-mono text-[10px] text-gray-400"
           >
-            Terminal v2.0 • Restricted Production Environment
+            Terminal v1.1.2 • Restricted Production Environment
           </motion.p>
         </motion.div>
       </div>

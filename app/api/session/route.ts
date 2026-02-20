@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
         const encrypted = encodeSession(auth.sessionData);
         response.cookies.set(cookieName, encrypted, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          secure: true,
+          sameSite: 'none',
           maxAge: 30 * 24 * 60 * 60, // 30 days
           path: '/',
         });

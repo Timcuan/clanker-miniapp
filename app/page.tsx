@@ -237,9 +237,9 @@ export default function HomePage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="mb-4"
+                className="mb-4 relative z-50"
               >
-                <div className="rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-100 dark:border-gray-800 p-4 sm:p-6 backdrop-blur-sm shadow-lg">
+                <div className="rounded-2xl bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 p-4 sm:p-6 shadow-xl">
                   <AboutSection />
                 </div>
               </motion.div>
@@ -524,13 +524,13 @@ export default function HomePage() {
             )}
           </AnimatePresence>
         </div>
-      </main>
+      </main >
 
       {/* Footer - with safe area for iOS */}
-      <footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors">
+      < footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors" >
         <div className="flex items-center justify-between max-w-lg sm:max-w-2xl mx-auto">
           <p className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">
-            UMKM v2.1
+            UMKM v1.1.2
           </p>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">Base</span>
@@ -541,7 +541,7 @@ export default function HomePage() {
             />
           </div>
         </div>
-      </footer>
-    </div>
+      </footer >
+    </div >
   );
 }

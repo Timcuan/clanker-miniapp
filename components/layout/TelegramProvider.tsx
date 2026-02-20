@@ -34,47 +34,48 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    // Wait for Telegram WebApp script to load
+    let retryCount = 0;
+    const MAX_RETRIES = 50; // 5 seconds total - increased for slow SDK loading
+
     const initTelegram = () => {
-      const app = getWebApp();
-      const user = getTelegramUser();
-      const isTg = isTelegramWebApp();
+      if (typeof window === 'undefined') return;
 
-      if (app) {
-        initWebApp();
+      const app = window.Telegram?.WebApp;
 
-        // Handle Deep Linking / Routing from start_param
-        const initDataUnsafe = app.initDataUnsafe as any;
-        if (initDataUnsafe?.start_param) {
-          const param = initDataUnsafe.start_param;
-          console.log('Deep link detected:', param);
+      // Check if SDK is available and has user data (if expected)
+      if (app && app.initData) {
+        console.log('[TelegramProvider] SDK Ready');
+        app.ready();
+        app.expand();
 
-          if (param === 'deploy') window.location.href = '/deploy';
-          if (param === 'history') window.location.href = '/history';
-          if (param === 'settings') window.location.href = '/settings';
-          // Using window.location.hash for HashRouter compatibility, 
-          // or router.push if we pass router here. 
-          // Since it's a provider, we'll try a more direct approach or just let the app handle it via useTelegramContext.
+        const user = app.initDataUnsafe?.user || null;
+        const isTg = !!app.initData;
+
+        setState({
+          webApp: app,
+          user,
+          isReady: true,
+          isTelegram: isTg,
+          colorScheme: app.colorScheme || 'dark',
+        });
+        console.log('[TelegramProvider] State set. isTelegram:', isTg, 'user:', !!user);
+
+        // Handle Deep Linking
+        const startParam = app.initDataUnsafe?.start_param;
+        if (startParam) {
+          console.log('[TelegramProvider] Start Param:', startParam);
+          // Handle routing if needed
         }
+      } else if (retryCount < MAX_RETRIES) {
+        retryCount++;
+        setTimeout(initTelegram, 100);
+      } else {
+        console.warn('[TelegramProvider] SDK initialization timed out');
+        setState(prev => ({ ...prev, isReady: true })); // Proceed as guest
       }
-
-      setState({
-        webApp: app,
-        user,
-        isReady: true,
-        isTelegram: isTg,
-        colorScheme: app?.colorScheme || 'dark',
-      });
     };
 
-    // Check if already loaded
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      initTelegram();
-    } else {
-      // Wait for script to load
-      const timeout = setTimeout(initTelegram, 100);
-      return () => clearTimeout(timeout);
-    }
+    initTelegram();
   }, []);
 
   return (

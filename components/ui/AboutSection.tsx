@@ -1,12 +1,12 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { 
-  Rocket, 
-  Shield, 
-  Coins, 
-  Zap, 
-  CheckCircle2, 
+import {
+  Rocket,
+  Shield,
+  Coins,
+  Zap,
+  CheckCircle2,
   ExternalLink,
   Code2,
   Sparkles,
@@ -36,8 +36,8 @@ function FeatureCard({ icon, title, description, delay = 0, color }: FeatureCard
           {icon}
         </div>
         <div className="min-w-0">
-          <h3 className="font-display text-xs sm:text-sm font-bold text-gray-800 mb-0.5">{title}</h3>
-          <p className="font-mono text-[10px] sm:text-xs text-gray-500 leading-relaxed line-clamp-2">{description}</p>
+          <h3 className="font-display text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-100 mb-0.5">{title}</h3>
+          <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{description}</p>
         </div>
       </div>
     </motion.div>
@@ -118,11 +118,11 @@ export default function AboutSection() {
           <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0052FF]" />
           <span className="font-mono text-[10px] sm:text-xs text-[#0052FF] font-medium">Powered by Clanker SDK</span>
         </motion.div>
-        
-        <h2 className="font-display text-base sm:text-lg font-bold text-gray-800">
+
+        <h2 className="font-display text-base sm:text-lg font-bold text-gray-800 dark:text-gray-100">
           Token Deployer for Base
         </h2>
-        <p className="font-mono text-xs sm:text-sm text-gray-500 max-w-sm mx-auto">
+        <p className="font-mono text-xs sm:text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
           Deploy ERC-20 tokens with MEV protection and instant verification.
         </p>
       </motion.div>
@@ -166,10 +166,10 @@ export default function AboutSection() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.9 + index * 0.1 }}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white border border-gray-100 shadow-sm"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm"
             >
               <span className="text-[#0052FF] [&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4">{tech.icon}</span>
-              <span className="font-mono text-[9px] sm:text-xs text-gray-600">{tech.name}</span>
+              <span className="font-mono text-[9px] sm:text-xs text-gray-600 dark:text-gray-300">{tech.name}</span>
             </motion.div>
           ))}
         </div>

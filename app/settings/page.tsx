@@ -27,7 +27,7 @@ interface StoredWallet {
 export default function SettingsPage() {
   const router = useRouter();
   const { isTelegram } = useTelegramContext();
-  const { activeWalletAddress, setActiveWallet } = useWallet();
+  const { activeWalletAddress, setActiveWallet, connectWallet } = useWallet();
 
   // Local state for managing wallets
   const [wallets, setWallets] = useState<StoredWallet[]>([]);
@@ -162,9 +162,22 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSetActive = (address: string | null) => {
-    setActiveWallet(address);
-    hapticFeedback('light');
+  const handleSetActive = async (address: string | null) => {
+    if (!address) {
+      setActiveWallet(null);
+      return;
+    }
+    const wallet = wallets.find(w => w.address === address);
+    if (wallet) {
+      const result = await connectWallet(wallet.privateKey);
+      if (result.success) {
+        setActiveWallet(address);
+        hapticFeedback('success');
+      } else {
+        alert('Failed to switch: ' + result.error);
+        hapticFeedback('error');
+      }
+    }
   };
 
   const toggleKeyVisibility = (address: string) => {

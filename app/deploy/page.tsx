@@ -310,7 +310,7 @@ function OptionSelector({
               : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
           >
-            <div className="font-semibold">{opt}</div>
+            <div className="font-semibold text-gray-800 dark:text-gray-200">{opt}</div>
             {descriptions?.[opt] && <div className="text-[10px] text-gray-500 dark:text-gray-500 mt-1">{descriptions[opt]}</div>}
           </button>
         ))}
@@ -591,6 +591,11 @@ export default function DeployPage() {
     const devBuy = parseFloat(config.devBuyEth);
     if (isNaN(devBuy) || devBuy < 0) {
       newErrors.devBuyEth = 'Invalid amount';
+    } else if (devBuy > 0) {
+      const currentBalanceStr = activeLocalWallet ? localBalance : balance;
+      if (currentBalanceStr && devBuy >= parseFloat(currentBalanceStr)) {
+        newErrors.devBuyEth = 'Insufficient balance';
+      }
     }
 
     // Salt validation

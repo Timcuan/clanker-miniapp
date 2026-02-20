@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 interface CLIButtonProps {
   children: React.ReactNode;
   onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' | 'info' | 'warning';
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
@@ -33,6 +33,9 @@ export function CLIButton({
     secondary: 'bg-white dark:bg-gray-900 border-umkm-primary/30 dark:border-umkm-primary/50 text-umkm-primary hover:bg-umkm-light dark:hover:bg-gray-800 hover:border-umkm-primary/50',
     danger: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 hover:border-red-300',
     ghost: 'bg-transparent border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900',
+    success: 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-[0_4px_15px_rgba(16,185,129,0.25)]',
+    info: 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600 shadow-[0_4px_15px_rgba(59,130,246,0.25)]',
+    warning: 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600 shadow-[0_4px_15px_rgba(245,158,11,0.25)]',
   };
 
   const sizeStyles = {
@@ -130,8 +133,8 @@ export function CLIInput({
   return (
     <div className={`space-y-1.5 sm:space-y-2 ${className}`}>
       {label && (
-        <label className="block font-mono text-[10px] sm:text-xs text-gray-500">
-          <span className="text-[#0052FF] font-medium">const</span> {label} <span className="text-gray-400">=</span>
+        <label className="block font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-[#0052FF] font-medium">const</span> {label} <span className="text-gray-400 dark:text-gray-500">=</span>
         </label>
       )}
       <div className="relative">

@@ -59,8 +59,15 @@ export function encodeSession(data: SessionData): string {
 export function decodeSession(encrypted: string): SessionData | null {
   try {
     const json = decrypt(encrypted);
-    if (!json) return null;
-    const data = JSON.parse(json) as SessionData;
+    if (!json || json.trim() === '') return null;
+
+    let data: SessionData;
+    try {
+      data = JSON.parse(json) as SessionData;
+    } catch (e) {
+      console.error('JSON parse failed for session:', e);
+      return null;
+    }
 
     // Check expiry
     if (data.expiresAt < Date.now()) {

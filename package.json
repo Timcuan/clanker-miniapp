@@ -1,6 +1,6 @@
 {
   "name": "umkm-terminal",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,8 @@
     "pages:build": "npx @cloudflare/next-on-pages",
     "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat",
     "pages:deploy": "npx wrangler pages deploy .vercel/output/static",
-    "db:init": "npx tsx scripts/init-db.ts"
+    "db:init": "npx tsx scripts/init-db.ts",
+    "db:reset": "npx tsx scripts/reset-db.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",

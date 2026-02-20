@@ -49,7 +49,7 @@ export interface DbDeployment {
 let client: Client | null = null;
 let initPromise: Promise<void> | null = null;
 
-function getClient(): Client {
+export function getClient(): Client {
   if (!client) {
     const url = process.env.TURSO_DATABASE_URL;
     const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -63,6 +63,8 @@ function getClient(): Client {
       authToken: authToken || undefined,
     });
   }
+
+  // Health check logic (Optional: can be slow, but useful for debugging)
   return client;
 }
 
@@ -108,7 +110,7 @@ function rowToDeployment(row: Row): DbDeployment {
   };
 }
 
-export default getClient;
+
 
 // ============================================
 // Database Schema
@@ -118,9 +120,11 @@ export async function initDatabase() {
 
   // Ensure required columns exist
   const migrationQueries = [
+    "ALTER TABLE users ADD COLUMN first_name TEXT",
     "ALTER TABLE users ADD COLUMN encrypted_session TEXT",
     "ALTER TABLE users ADD COLUMN is_authorized INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN last_active_at TEXT",
+    "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0",
   ];
 
   for (const query of migrationQueries) {
@@ -137,6 +141,7 @@ export async function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id INTEGER UNIQUE NOT NULL,
       username TEXT,
+      first_name TEXT,
       wallet_address TEXT,
       encrypted_session TEXT,
       last_active_at TEXT,
@@ -440,6 +445,8 @@ export async function getSession(token: string): Promise<(DbSession & { user: Db
     throw error;
   }
 }
+
+
 
 export async function deleteSession(token: string): Promise<void> {
   try {

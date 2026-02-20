@@ -25,12 +25,16 @@ interface Deployment {
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { isAuthenticated, formattedAddress } = useWallet();
+  const { isAuthenticated, formattedAddress, address } = useWallet();
   const { isTelegram } = useTelegramContext();
 
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMetricsLoading, setIsMetricsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Real-time market data from DexScreener
+  const [metrics, setMetrics] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (isTelegram) {
@@ -49,11 +53,82 @@ export default function HistoryPage() {
       const response = await fetch('/api/deployments', { credentials: 'include' });
       const data = await response.json();
       setDeployments(data.deployments || []);
+      // Trigger metrics fetch
+      fetchMetrics(data.deployments || []);
     } catch (error) {
       console.error('Failed to fetch deployments:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchMetrics = async (deps: Deployment[]) => {
+    const addresses = deps
+      .filter((d) => d.status === 'confirmed' && d.tokenAddress)
+      .map((d) => d.tokenAddress as string);
+
+    if (addresses.length === 0) return;
+
+    setIsMetricsLoading(true);
+    // DexScreener allows up to 30 addresses per request
+    const chunks = [];
+    for (let i = 0; i < addresses.length; i += 30) {
+      chunks.push(addresses.slice(i, i + 30).join(','));
+    }
+
+    try {
+      const newMetrics: Record<string, any> = {};
+
+      for (const chunk of chunks) {
+        const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${chunk}`);
+
+        if (!res.ok) {
+          console.warn(`DexScreener API returned status ${res.status}`);
+          continue;
+        }
+
+        const data = await res.json();
+
+        if (data && data.pairs && Array.isArray(data.pairs)) {
+          data.pairs.forEach((pair: any) => {
+            const tokenAddr = pair.baseToken?.address?.toLowerCase();
+            if (!tokenAddr) return;
+
+            // Prioritize higher liquidity pairs if multiple exist
+            const liq = parseFloat(pair.liquidity?.usd || '0');
+            if (!newMetrics[tokenAddr] || liq > newMetrics[tokenAddr].liquidityUsd) {
+              newMetrics[tokenAddr] = {
+                priceUsd: parseFloat(pair.priceUsd || '0'),
+                volume24hUsd: parseFloat(pair.volume?.h24 || '0'),
+                liquidityUsd: liq,
+                priceChange24h: parseFloat(pair.priceChange?.h24 || '0')
+              };
+            }
+          });
+        }
+      }
+      setMetrics(prev => ({ ...prev, ...newMetrics }));
+    } catch (e) {
+      console.error("Failed to fetch DexScreener metrics", e);
+    } finally {
+      setIsMetricsLoading(false);
+    }
+  };
+
+  const formatCurrency = (val: number | undefined | null) => {
+    if (val === undefined || val === null || isNaN(val)) return '$0.00';
+    if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
+    if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
+    if (val >= 1e3) return `$${(val / 1e3).toFixed(2)}K`;
+    return `$${val.toFixed(2)}`;
+  };
+
+  const formatPrice = (val: number | undefined | null) => {
+    if (val === undefined || val === null || isNaN(val)) return '$0.00';
+    // Small prices need precision
+    if (val < 0.0001) return `$${val.toPrecision(2)}`;
+    if (val < 1) return `$${val.toPrecision(4)}`;
+    return `$${val.toFixed(2)}`;
   };
 
   const copyToClipboard = async (text: string, id: string) => {
@@ -152,6 +227,24 @@ export default function HistoryPage() {
       {/* Main Content */}
       <main className="flex-1 p-4 relative z-10 overflow-y-auto">
         <div className="max-w-2xl mx-auto">
+          {address && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 flex"
+            >
+              <a
+                href={`https://www.defined.fi/tokens/discover?creatorAddress=${address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border border-clanker-primary/30 bg-clanker-primary/10 hover:bg-clanker-primary/20 text-clanker-primary font-mono font-bold text-sm shadow-lg shadow-clanker-primary/5 transition-all active:scale-[0.98]"
+              >
+                <ExternalLink className="w-5 h-5" />
+                Discover on Defined.fi
+              </a>
+            </motion.div>
+          )}
+
           <Terminal title="umkm@base:~/history" className="w-full">
             <TerminalLine text={`Deployment history (${deployments.length} records)`} type="command" />
 
@@ -242,6 +335,53 @@ export default function HistoryPage() {
                           <p className="font-mono text-xs text-gray-600">
                             {formatDate(deployment.timestamp)}
                           </p>
+
+                          {/* Metrics Section */}
+                          {deployment.status === 'confirmed' && deployment.tokenAddress && (
+                            <div className="mt-3">
+                              {isMetricsLoading && !metrics[deployment.tokenAddress.toLowerCase()] ? (
+                                <div className="p-3 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-lg flex items-center justify-center">
+                                  <RefreshCw className="w-4 h-4 text-clanker-primary animate-spin" />
+                                  <span className="ml-2 font-mono text-xs text-gray-500">Loading metrics...</span>
+                                </div>
+                              ) : metrics[deployment.tokenAddress.toLowerCase()] ? (
+                                <motion.div
+                                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                  className="p-3 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-3"
+                                >
+                                  <div>
+                                    <span className="block font-mono text-[10px] text-gray-500 dark:text-gray-400">Price</span>
+                                    <span className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">
+                                      {formatPrice(metrics[deployment.tokenAddress.toLowerCase()].priceUsd)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="block font-mono text-[10px] text-gray-500 dark:text-gray-400">24h Vol</span>
+                                    <span className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">
+                                      {formatCurrency(metrics[deployment.tokenAddress.toLowerCase()].volume24hUsd)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="block font-mono text-[10px] text-gray-500 dark:text-gray-400">Liquidity</span>
+                                    <span className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">
+                                      {formatCurrency(metrics[deployment.tokenAddress.toLowerCase()].liquidityUsd)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="block font-mono text-[10px] text-gray-500 dark:text-gray-400">24h Change</span>
+                                    <span className={`font-mono flex items-center gap-0.5 text-xs font-bold ${metrics[deployment.tokenAddress.toLowerCase()].priceChange24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {metrics[deployment.tokenAddress.toLowerCase()].priceChange24h >= 0 ? '+' : ''}
+                                      {(metrics[deployment.tokenAddress.toLowerCase()].priceChange24h || 0).toFixed(2)}%
+                                    </span>
+                                  </div>
+                                </motion.div>
+                              ) : (
+                                <div className="p-3 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-lg flex items-center justify-center">
+                                  <span className="font-mono text-xs text-gray-500">No trading data available yet</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

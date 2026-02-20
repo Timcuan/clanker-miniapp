@@ -26,18 +26,28 @@ export async function getAuthStatus(telegramUserId: number): Promise<AuthStatus>
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(cookieName)?.value;
 
-    let decodedSession: SessionData | null = sessionCookie ? decodeSession(sessionCookie) : null;
+    let decodedSession: SessionData | null = null;
+    try {
+        decodedSession = sessionCookie ? decodeSession(sessionCookie) : null;
+    } catch (e) {
+        console.error('[Auth] Cookie decode error:', e);
+    }
+
     let restored = false;
 
-    // Recovery logic: fallback to DB if cookie is missing
+    // Recovery logic: fallback to DB if cookie is missing or invalid
     if (!decodedSession) {
         try {
+            console.log(`[Auth] Session invalid/missing for ${telegramUserId}, attempting DB recovery...`);
             const user = await findUserByTelegramId(telegramUserId);
             if (user && user.encrypted_session) {
                 decodedSession = decodeSession(user.encrypted_session);
                 if (decodedSession) {
                     restored = true;
+                    console.log(`[Auth] Session restored from DB for ${telegramUserId}`);
                 }
+            } else {
+                console.log(`[Auth] No encrypted session in DB for ${telegramUserId}`);
             }
         } catch (e) {
             console.error('[Auth] DB Recovery Error:', e);
@@ -48,7 +58,7 @@ export async function getAuthStatus(telegramUserId: number): Promise<AuthStatus>
         userId: telegramUserId,
         isAdmin,
         hasAccess,
-        isConnected: !!decodedSession?.privateKey,
+        isConnected: !!(decodedSession && decodedSession.privateKey),
         address: decodedSession?.address || null,
         sessionData: decodedSession,
         error: accessError

@@ -8,6 +8,18 @@ import { sendAdminLog } from '@/lib/access-control';
 import { validateTelegramWebAppData, parseTelegramWebAppData } from '@/lib/telegram/auth';
 import { getAuthStatus } from '@/lib/auth-server';
 
+// Helper to safely parse JSON body
+async function getSafeBody(request: NextRequest) {
+  try {
+    const text = await request.text();
+    if (!text || text.trim() === '') return {};
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('[API] Body parse failed:', e);
+    return {};
+  }
+}
+
 // Helper to get Telegram user ID from request headers or query
 function getTelegramUserId(request: NextRequest): number | undefined {
   // Check header first (set by client)
@@ -28,13 +40,15 @@ function getTelegramUserId(request: NextRequest): number | undefined {
 }
 
 function validatePrivateKey(key: string): boolean {
+  const trimmed = key.trim();
   // Accept with or without 0x prefix
-  const cleanKey = key.startsWith('0x') ? key : `0x${key}`;
+  const cleanKey = trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`;
   return /^0x[a-fA-F0-9]{64}$/.test(cleanKey);
 }
 
 function normalizePrivateKey(key: string): `0x${string}` {
-  return (key.startsWith('0x') ? key : `0x${key}`) as `0x${string}`;
+  const clean = key.trim();
+  return (clean.startsWith('0x') ? clean : `0x${clean}`) as `0x${string}`;
 }
 
 function getPublicClient() {
@@ -47,7 +61,22 @@ function getPublicClient() {
 // GET - Check wallet status and get balance
 export async function GET(request: NextRequest) {
   try {
-    const telegramUserId = getTelegramUserId(request);
+    let telegramUserId = getTelegramUserId(request);
+
+    // HARDENING: If ID missing from headers/query, search for any clanker_session_* cookie
+    if (!telegramUserId) {
+      const cookieStore = await cookies();
+      const allCookies = (await cookieStore).getAll();
+      const sessionCookie = allCookies.find(c => c.name.startsWith('clanker_session_'));
+      if (sessionCookie) {
+        const { decodeSession } = await import('@/lib/serverless-db');
+        const decoded = decodeSession(sessionCookie.value);
+        if (decoded && decoded.telegramUserId) {
+          telegramUserId = decoded.telegramUserId;
+        }
+      }
+    }
+
     if (!telegramUserId) {
       return NextResponse.json({ connected: false, address: null });
     }
@@ -98,8 +127,8 @@ export async function GET(request: NextRequest) {
       const encrypted = encodeSession(auth.sessionData);
       response.cookies.set(cookieName, encrypted, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 30 * 24 * 60 * 60, // 30 days
         path: '/',
       });
@@ -115,7 +144,7 @@ export async function GET(request: NextRequest) {
 // POST - Connect wallet with private key
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await getSafeBody(request);
     const { privateKey, telegramUserId: bodyTelegramUserId, telegramUsername, initData } = body;
 
     // Get Telegram user ID from header, query, or body
@@ -197,8 +226,8 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set(sessionCookieName, encryptedSession, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60, // 7 days
       path: '/',
     });
@@ -216,7 +245,7 @@ export async function POST(request: NextRequest) {
 // PUT - Generate New Wallet (Secure & Easy)
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await getSafeBody(request);
     const { telegramUserId: bodyTelegramUserId, telegramUsername, initData } = body;
 
     let telegramUserId = getTelegramUserId(request) || bodyTelegramUserId;
@@ -233,13 +262,33 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Generate new private key
+    // Generate new wallet
     const newPrivateKey = generatePrivateKey();
     const account = privateKeyToAccount(newPrivateKey);
 
-    // Create secure session immediately
+    // Create session
     const sessionData = createSessionData(newPrivateKey, account.address, telegramUserId);
     const encryptedSession = encodeSession(sessionData);
+
+    // Get unique cookie name for this Telegram user
+    const sessionCookieName = getSessionCookieName(telegramUserId);
+
+    // Response with Private Key ONLY ONCE
+    const response = NextResponse.json({
+      success: true,
+      address: account.address,
+      privateKey: newPrivateKey, // Only time this is shown to user
+      telegramUserId,
+      generated: true
+    });
+
+    response.cookies.set(sessionCookieName, encryptedSession, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 30 * 24 * 60 * 60, // 30 days for generated wallets
+      path: '/',
+    });
 
     // PERSISTENCE: Save to database if Telegram user ID is present
     if (telegramUserId) {
@@ -259,26 +308,6 @@ export async function PUT(request: NextRequest) {
         });
       }
     }
-
-    // Get unique cookie name for this Telegram user
-    const sessionCookieName = getSessionCookieName(telegramUserId);
-
-    // Response with Private Key ONLY ONCE
-    const response = NextResponse.json({
-      success: true,
-      address: account.address,
-      privateKey: newPrivateKey, // Only time this is shown to user
-      telegramUserId,
-      generated: true
-    });
-
-    response.cookies.set(sessionCookieName, encryptedSession, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60, // 30 days for generated wallets
-      path: '/',
-    });
 
     // Log generation (without key)
     sendAdminLog(
