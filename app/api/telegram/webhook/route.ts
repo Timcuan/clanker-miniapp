@@ -122,7 +122,12 @@ export async function POST(request: NextRequest) {
 
       // /id
       else if (text === '/id') {
-        await sendMessage(chatId, `System ID: <code>${userId}</code>`);
+        const isAdmin = isAdminUser(userId);
+        await sendMessage(chatId, 
+          `System ID: <code>${userId}</code>\n` +
+          `Status: ${isAdmin ? 'Admin (Full Access)' : (hasAccess ? 'Authorized User' : 'Restricted')}\n` +
+          `${!isAdmin ? 'Request admin access by sending this ID to the developer.' : ''}`
+        );
       }
 
       // /grant [id] (Admin)

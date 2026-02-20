@@ -1,6 +1,11 @@
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
-const ADMIN_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(id => parseInt(id.trim()));
+const ADMIN_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+const PRIMARY_ADMIN_ID = parseInt(process.env.PRIMARY_ADMIN_ID) || 1558397457;
+
+if (PRIMARY_ADMIN_ID && !ADMIN_IDS.includes(PRIMARY_ADMIN_ID)) {
+  ADMIN_IDS.push(PRIMARY_ADMIN_ID);
+}
 
 function isAdmin(userId) {
   return ADMIN_IDS.includes(userId);
@@ -84,7 +89,7 @@ const webhookHandler = {
             [{ text: 'Open Settings', web_app: { url: `${APP_URL}/settings` } }]
           ]);
         } else if (text === '/id') {
-          await sendMessage(chatId, `Your Telegram ID: <code>${userId}</code>`);
+          await sendMessage(chatId, `System ID: <code>${userId}</code>\nStatus: ${admin ? 'Admin' : 'User'}`);
         } else if (text === '/help') {
           const helpText = admin
             ? `<b>Admin Control Center</b>\n\n` +

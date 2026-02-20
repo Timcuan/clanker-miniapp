@@ -1,4 +1,5 @@
 import { createClient, type Client, type Row } from '@libsql/client/web';
+import { PRIMARY_ADMIN_ID } from '../access-control';
 
 // ============================================
 // Types
@@ -334,7 +335,7 @@ export async function unauthorizeUser(telegramId: number): Promise<void> {
 export async function isUserAuthorized(telegramId: number): Promise<boolean> {
   try {
     // Admin is always authorized
-    if (telegramId === 1558397457) return true;
+    if (telegramId === PRIMARY_ADMIN_ID) return true;
 
     const user = await findUserByTelegramId(telegramId);
     return user ? user.is_authorized === 1 : false;

@@ -5,8 +5,8 @@ export const ADMIN_SECRET = process.env.ADMIN_SECRET || 'umkm-admin-secret-chang
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production-32ch';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 
-// Primary Admin ID (the user)
-export const PRIMARY_ADMIN_ID = 1558397457;
+// Primary Admin ID (the user) - can be overridden by env
+export const PRIMARY_ADMIN_ID = Number(process.env.PRIMARY_ADMIN_ID) || 1558397457;
 
 // Admin IDs (comma-separated in env)
 const ADMIN_TELEGRAM_IDS: number[] = (process.env.ADMIN_TELEGRAM_IDS || '')
@@ -15,7 +15,7 @@ const ADMIN_TELEGRAM_IDS: number[] = (process.env.ADMIN_TELEGRAM_IDS || '')
   .filter(id => !isNaN(id) && id > 0);
 
 // Ensure PRIMARY_ADMIN_ID is always in the list
-if (!ADMIN_TELEGRAM_IDS.includes(PRIMARY_ADMIN_ID)) {
+if (PRIMARY_ADMIN_ID && !ADMIN_TELEGRAM_IDS.includes(PRIMARY_ADMIN_ID)) {
   ADMIN_TELEGRAM_IDS.push(PRIMARY_ADMIN_ID);
 }
 
@@ -39,13 +39,21 @@ export interface UserIdentifier {
 export function isAdminUser(userId?: number, platform: Platform = 'telegram'): boolean {
   if (!userId) return false;
 
+  const numericId = Number(userId);
+  if (isNaN(numericId)) return false;
+
   // Specific check for primary admin
-  if (platform === 'telegram' && userId === PRIMARY_ADMIN_ID) return true;
+  if (platform === 'telegram' && numericId === PRIMARY_ADMIN_ID) return true;
 
   if (platform === 'farcaster') {
-    return ADMIN_FARCASTER_FIDS.includes(userId);
+    return ADMIN_FARCASTER_FIDS.includes(numericId);
   }
-  return ADMIN_TELEGRAM_IDS.includes(userId);
+
+  const isIncluded = ADMIN_TELEGRAM_IDS.includes(numericId);
+  if (!isIncluded) {
+    console.log(`[Access] Admin check failed for ${platform}:${numericId}. Primary is ${PRIMARY_ADMIN_ID}`);
+  }
+  return isIncluded;
 }
 
 // Grant access to a user
