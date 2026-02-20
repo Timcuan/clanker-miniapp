@@ -2,22 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] - 2026-02-19
+## [1.2.1] - 2026-02-20
 ### Added
-- **Colored Buttons**: Implemented Telegram Bot API 9.4 `style` property for inline keyboard buttons (Success, Primary, Secondary).
-- **Wallet Management**: Added ability to switch between saved wallets in Settings without re-login.
-- **Telegram Access**: Added fallback "Open Web App" button for better accessibility.
-- **Dark Mode**: Fixed overlay background transparency issues.
-- **USD Balance Display**: Real-time ETH-USD conversion on Home and Deploy pages.
+- **Custom Base RPC URL**: Override the default network node (`mainnet.base.org`) via `Settings` to integrate fast private infrastructure (e.g., Alchemy, QuickNode, Infura).
+- **Telegram Cloud Sync**: Opt-in framework (`window.Telegram.WebApp.CloudStorage`) to synchronize `ThemeProvider` preferences and UX layouts dynamically across devices without transmitting private keys.
+- **Factory Reset Protocol (Danger Zone)**: Advanced local cache destruction utility inside `app/settings/page.tsx` for securing offline environments.
 
 ### Changed
-- Refactored `/start` command to use a cleaner, emoji-free layout with dual keyboards (Inline + Reply).
-- Updated `CLIButton` component with new variants (`success`, `info`, `warning`, `danger`).
-- Simplified Mini App Home screen (removed colorful menu).
-- bumped version to 1.1.1.
+- Refactored `DeployService` arguments schema to natively inject `customRpcUrl`.
+- Reordered default `WalletContext` network nodes to fall back gracefully upon custom node instantiation errors.
+- Augmented `/settings` page layout with categorized subheaders (`Network Integration`, `Danger Zone`).
 
-## [1.0.0] - 2026-02-18
+## [1.2.0] - 2026-02-20
 ### Added
-- Initial Release of Clanker MiniApp.
-- Basic deployment features.
-- Telegram Bot Webhook integration.
+- DexScreener Public API integration for Live Price, Total Volume & 24hr Liquidity inside `/history`.
+- "External Profiles" redirection linking to defined.fi profile analytics natively in `/history`.
+- Futuristic framer-motion animations inside `/deploy` execution state.
+
+### Fixed
+- Base Terminal Dark Mode Contrast Ratio for `output`, `success`, and `error` flags.
+- `ETH Balance` font-coloring bugs during Dark Mode toggle.
+- Coinbase CORS isolation failures inside `app/page.tsx` by pivoting to DexScreener WETH pair reads.
