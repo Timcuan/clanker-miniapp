@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { isAdminUser, verifyAccess } from '@/lib/access-control';
-import { findUserByTelegramId, updateUser } from '@/lib/db/turso';
-import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
+import { getAuthStatus } from '@/lib/auth-server';
+import { updateUser } from '@/lib/db/turso';
+import { getSessionCookieName, encodeSession } from '@/lib/serverless-db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,54 +19,37 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = parseInt(telegramUserIdStr, 10);
-    const isAdmin = isAdminUser(userId);
-    const { hasAccess, error: accessError } = await verifyAccess(userId);
-
-    const cookieName = getSessionCookieName(userId);
-    const cookieStore = await cookies();
-    let sessionCookie = cookieStore.get(cookieName)?.value;
-
-    // RECOVERY LOGIC: Restore from DB if cookie is missing OR corrupted
-    let restoredFromDb = false;
-    let decodedSession = sessionCookie ? decodeSession(sessionCookie) : null;
-
-    if (!decodedSession) {
-      const user = await findUserByTelegramId(userId);
-      if (user && user.encrypted_session) {
-        decodedSession = decodeSession(user.encrypted_session);
-        if (decodedSession) {
-          sessionCookie = user.encrypted_session;
-          restoredFromDb = true;
-          console.log(`[Session] Restored via DB for ${userId}`);
-        }
-      }
-    }
+    const auth = await getAuthStatus(userId);
 
     // ACTIVITY TRACKING
-    if (hasAccess) {
-      // Background update last active
+    if (auth.hasAccess) {
       updateUser(userId, { last_active_at: new Date().toISOString() }).catch(() => { });
     }
 
     const response = NextResponse.json({
-      hasSession: !!decodedSession,
-      isLoggedIn: !!decodedSession?.privateKey,
-      walletAddress: decodedSession?.address || null,
-      isAdmin,
-      hasAccess,
-      accessError: hasAccess ? null : (accessError || 'UNAUTHORIZED'),
+      hasSession: !!auth.sessionData,
+      isLoggedIn: auth.isConnected,
+      walletAddress: auth.address,
+      isAdmin: auth.isAdmin,
+      hasAccess: auth.hasAccess,
+      accessError: auth.hasAccess ? null : (auth.error || 'UNAUTHORIZED'),
       telegramUserId: userId,
     });
 
-    // Sync cookie back if it was missing or we restored it
-    if (sessionCookie && (restoredFromDb || !cookieStore.get(cookieName))) {
-      response.cookies.set(cookieName, sessionCookie, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-        path: '/',
-      });
+    // Ensure cookie is synced (Persistence Hardening)
+    if (auth.sessionData) {
+      const cookieName = getSessionCookieName(userId);
+      const cookieStore = await cookies();
+      if (!cookieStore.get(cookieName)) {
+        const encrypted = encodeSession(auth.sessionData);
+        response.cookies.set(cookieName, encrypted, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 30 * 24 * 60 * 60, // 30 days
+          path: '/',
+        });
+      }
     }
 
     return response;

@@ -70,6 +70,22 @@ export default function HomePage() {
     }
   };
 
+  const [ethPrice, setEthPrice] = useState<number | null>(null);
+
+  // Fetch ETH Price
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        const res = await fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot');
+        const data = await res.json();
+        setEthPrice(parseFloat(data.data.amount));
+      } catch (e) {
+        console.error('Failed to fetch ETH price');
+      }
+    };
+    fetchPrice();
+  }, []);
+
   // Initialize terminal sequence
   useEffect(() => {
     const timer = setTimeout(() => setShowAscii(true), 300);
@@ -154,19 +170,30 @@ export default function HomePage() {
     router.push('/deploy');
   };
 
+  // Helper to format balance with USD
+  const formatBalance = (bal: string | null) => {
+    if (!bal) return 'Loading...';
+    const eth = parseFloat(bal);
+    if (ethPrice) {
+      const usd = (eth * ethPrice).toFixed(2);
+      return `${eth.toFixed(4)} ETH (~$${usd})`;
+    }
+    return `${eth.toFixed(4)} ETH`;
+  };
+
   return (
-    <div className="min-h-[100dvh] flex flex-col relative overflow-hidden bg-gradient-to-b from-white via-blue-50/30 to-white">
+    <div className="min-h-[100dvh] flex flex-col relative overflow-hidden bg-gradient-to-b from-white via-blue-50/30 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 transition-colors duration-300">
       {/* Background Effects - subtle for clean look */}
-      <div className="hidden sm:block">
+      <div className="hidden sm:block opacity-50 dark:opacity-30">
         <MatrixRain />
       </div>
 
       {/* Gradient Orbs - subtle blue tints */}
-      <div className="absolute -top-20 -left-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 -right-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-20 -left-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 dark:bg-[#0052FF]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 -right-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 dark:bg-[#0052FF]/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header - with safe area for iOS */}
-      <header className="relative z-10 px-3 sm:px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 bg-white/90 backdrop-blur-md">
+      <header className="relative z-10 px-3 sm:px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors">
         <div className="flex items-center min-w-0 flex-1">
           <ClankerLogo size="md" animated={true} showText={true} />
         </div>
@@ -177,7 +204,7 @@ export default function HomePage() {
             onClick={() => setShowAbout(!showAbout)}
             className={`p-2 rounded-xl transition-all ${showAbout
               ? 'bg-[#0052FF] text-white shadow-lg shadow-[#0052FF]/20'
-              : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
           >
             {showAbout ? <X className="w-4 h-4" /> : <Info className="w-4 h-4" />}
@@ -190,7 +217,7 @@ export default function HomePage() {
               </div>
               <button
                 onClick={handleDisconnect}
-                className="p-2 rounded-xl hover:bg-red-50 transition-colors text-gray-500 hover:text-red-500"
+                className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -212,7 +239,7 @@ export default function HomePage() {
                 transition={{ duration: 0.2 }}
                 className="mb-4"
               >
-                <div className="rounded-2xl bg-white/95 border border-gray-100 p-4 sm:p-6 backdrop-blur-sm shadow-lg">
+                <div className="rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-100 dark:border-gray-800 p-4 sm:p-6 backdrop-blur-sm shadow-lg">
                   <AboutSection />
                 </div>
               </motion.div>
@@ -289,9 +316,9 @@ export default function HomePage() {
                           </CLIButton>
 
                           <div className="relative flex items-center py-2">
-                            <div className="flex-grow border-t border-gray-200"></div>
-                            <span className="flex-shrink-0 mx-4 text-gray-400 text-xs font-mono">OR</span>
-                            <div className="flex-grow border-t border-gray-200"></div>
+                            <div className="flex-grow border-t border-gray-200 dark:border-gray-800"></div>
+                            <span className="flex-shrink-0 mx-4 text-gray-400 dark:text-gray-500 text-xs font-mono">OR</span>
+                            <div className="flex-grow border-t border-gray-200 dark:border-gray-800"></div>
                           </div>
 
                           <div className="space-y-2">
@@ -319,8 +346,8 @@ export default function HomePage() {
                           </div>
                         </div>
 
-                        <div className="mt-4 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
-                          <p className="font-mono text-[10px] text-blue-600 flex gap-2">
+                        <div className="mt-4 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+                          <p className="font-mono text-[10px] text-blue-600 dark:text-blue-400 flex gap-2">
                             <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
                             <span>
                               "Create New Wallet" generates a secure key on the server. Back it up immediately! It's never shown again.
@@ -340,45 +367,45 @@ export default function HomePage() {
                       >
                         <TerminalLine text="⚠️ IMPORTANT: BACKUP YOUR KEY" type="warning" />
 
-                        <div className="p-4 rounded-xl bg-yellow-50/80 border border-yellow-200/60 backdrop-blur-sm space-y-4">
+                        <div className="p-4 rounded-xl bg-yellow-50/80 dark:bg-yellow-900/10 border border-yellow-200/60 dark:border-yellow-700/30 backdrop-blur-sm space-y-4">
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <p className="font-mono text-xs text-yellow-800 font-bold uppercase tracking-wider">Private Key</p>
-                              <span className="text-[10px] text-yellow-600/80 font-mono">Tap to copy</span>
+                              <p className="font-mono text-xs text-yellow-800 dark:text-yellow-500 font-bold uppercase tracking-wider">Private Key</p>
+                              <span className="text-[10px] text-yellow-600/80 dark:text-yellow-500/80 font-mono">Tap to copy</span>
                             </div>
                             <button
                               onClick={handleCopyKey}
                               className="w-full text-left group relative"
                             >
-                              <div className="p-3 bg-white/80 hover:bg-white rounded-lg border border-yellow-200/50 font-mono text-xs break-all shadow-sm transition-all group-hover:shadow-md group-hover:border-yellow-300">
+                              <div className="p-3 bg-white/80 dark:bg-black/30 hover:bg-white dark:hover:bg-black/50 rounded-lg border border-yellow-200/50 dark:border-yellow-700/50 font-mono text-xs break-all shadow-sm transition-all group-hover:shadow-md group-hover:border-yellow-300 dark:group-hover:border-yellow-600 dark:text-gray-200">
                                 {generatedWallet.privateKey}
                               </div>
-                              <div className="absolute top-1/2 right-2 -translate-y-1/2 p-1.5 rounded-md bg-yellow-100 text-yellow-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="absolute top-1/2 right-2 -translate-y-1/2 p-1.5 rounded-md bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                               </div>
                             </button>
                             {copied && (
                               <motion.p
                                 initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-                                className="text-[10px] text-green-600 font-mono text-right"
+                                className="text-[10px] text-green-600 dark:text-green-400 font-mono text-right"
                               >
                                 Copied to clipboard!
                               </motion.p>
                             )}
                           </div>
 
-                          <div className="space-y-1 pt-2 border-t border-yellow-200/50">
-                            <p className="font-mono text-xs text-yellow-800 font-bold uppercase tracking-wider">Address</p>
+                          <div className="space-y-1 pt-2 border-t border-yellow-200/50 dark:border-yellow-700/30">
+                            <p className="font-mono text-xs text-yellow-800 dark:text-yellow-500 font-bold uppercase tracking-wider">Address</p>
                             <div className="flex items-center gap-2">
-                              <p className="font-mono text-xs text-gray-600 break-all select-all">
+                              <p className="font-mono text-xs text-gray-600 dark:text-gray-400 break-all select-all">
                                 {generatedWallet.address}
                               </p>
                             </div>
                           </div>
                         </div>
 
-                        <div className="p-3 rounded-lg bg-red-50/50 border border-red-100">
-                          <p className="text-[10px] text-red-600 font-mono flex items-start gap-2">
+                        <div className="p-3 rounded-lg bg-red-50/50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30">
+                          <p className="text-[10px] text-red-600 dark:text-red-400 font-mono flex items-start gap-2">
                             <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
                             <span>
                               This key is NOT saved in the app. If you lose it, your funds are lost forever. Save it now!
@@ -387,13 +414,13 @@ export default function HomePage() {
                         </div>
 
                         <div
-                          className="flex items-center gap-3 cursor-pointer p-3 hover:bg-gray-50 rounded-xl transition-all border border-transparent hover:border-100"
+                          className="flex items-center gap-3 cursor-pointer p-3 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-gray-100 dark:hover:border-white/10"
                           onClick={() => setHasBackedUp(!hasBackedUp)}
                         >
-                          <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${hasBackedUp ? 'bg-[#0052FF] border-[#0052FF] shadow-sm' : 'bg-white border-gray-300'}`}>
+                          <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${hasBackedUp ? 'bg-[#0052FF] border-[#0052FF] shadow-sm' : 'bg-white dark:bg-black/30 border-gray-300 dark:border-gray-700'}`}>
                             {hasBackedUp && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
-                          <span className="font-mono text-xs text-gray-600 select-none flex-1">
+                          <span className="font-mono text-xs text-gray-600 dark:text-gray-400 select-none flex-1">
                             I have explicitly saved this private key in a secure location
                           </span>
                         </div>
@@ -439,52 +466,52 @@ export default function HomePage() {
                           type="output"
                         />
                         <TerminalLine
-                          text={`Balance: ${balance ? `${parseFloat(balance).toFixed(6)} ETH` : 'Loading...'}`}
-                          type="output"
+                          text={`Balance: ${formatBalance(balance)}`}
+                          type="info"
                         />
                         <TerminalLine text="Network: Base Mainnet (Chain ID: 8453)" type="output" />
                         <TerminalLine text="Status: Ready for deployment" type="success" />
 
-                        <div className="border-t border-gray-100 pt-3 sm:pt-4 mt-3 sm:mt-4">
+                        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 sm:pt-4 mt-3 sm:mt-4">
                           <TerminalLine text="Available commands:" type="info" />
 
                           <div className="grid gap-2 sm:gap-3 mt-3 sm:mt-4">
                             <CLICard hoverable onClick={handleDeploy} className="group">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
                                   <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">Deploy Token</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">Launch on Base Network</p>
+                                  <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-[#0052FF] transition-colors">Deploy Token</h3>
+                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Launch on Base Network</p>
                                 </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0052FF] transition-colors flex-shrink-0" />
+                                <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-[#0052FF] transition-colors flex-shrink-0" />
                               </div>
                             </CLICard>
 
                             <CLICard hoverable onClick={() => router.push('/history')} className="group">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20">
                                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">History</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">View past deployments</p>
+                                  <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-emerald-500 transition-colors">History</h3>
+                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">View past deployments</p>
                                 </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
+                                <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
                               </div>
                             </CLICard>
 
                             <CLICard hoverable onClick={() => router.push('/settings')} className="group">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-300" />
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">Settings</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">Configuration</p>
+                                  <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">Settings</h3>
+                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Configuration</p>
                                 </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-700 transition-colors flex-shrink-0" />
+                                <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors flex-shrink-0" />
                               </div>
                             </CLICard>
                           </div>
@@ -500,17 +527,17 @@ export default function HomePage() {
       </main>
 
       {/* Footer - with safe area for iOS */}
-      <footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 bg-white/90 backdrop-blur-md">
+      <footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors">
         <div className="flex items-center justify-between max-w-lg sm:max-w-2xl mx-auto">
-          <p className="font-mono text-[10px] sm:text-xs text-gray-400">
-            UMKM v2.0
+          <p className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">
+            UMKM v2.1
           </p>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] sm:text-xs text-gray-400">Base</span>
+            <span className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">Base</span>
             <motion.div
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500"
+              className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
             />
           </div>
         </div>

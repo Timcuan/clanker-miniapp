@@ -76,7 +76,7 @@ export default function HistoryPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-white via-blue-50/30 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 relative overflow-hidden">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden">
         <div className="hidden sm:block">
           <MatrixRain />
         </div>
@@ -101,7 +101,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-gradient-to-b from-white via-blue-50/30 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 relative overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col relative overflow-hidden transition-colors">
       {/* Background Effects */}
       <div className="hidden sm:block">
         <MatrixRain />
@@ -191,10 +191,10 @@ export default function HistoryPage() {
                             ${deployment.symbol}
                           </span>
                           <span className={`px-2 py-0.5 text-xs font-mono rounded ${deployment.status === 'confirmed'
-                              ? 'bg-green-500/20 text-green-400'
-                              : deployment.status === 'pending'
-                                ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-red-500/20 text-red-400'
+                            ? 'bg-green-500/20 text-green-400'
+                            : deployment.status === 'pending'
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-red-500/20 text-red-400'
                             }`}>
                             {deployment.status}
                           </span>

@@ -33,7 +33,7 @@ const DeploySchema = z.object({
     tokenAdmin: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
     rewardRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
     creatorReward: z.number().min(0).max(80),
-    feeType: z.enum(['dynamic', 'static']),
+    feeType: z.enum(['dynamic', 'static', 'degen', 'low']),
     poolPosition: z.enum(['Standard', 'Project']),
     mevProtection: z.nativeEnum(MevModuleType),
     blockDelay: z.number().min(0).max(20),
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
             // Context
             platform: 'telegram',
-            telegramUserId: session.telegramUserId || session.telegramId,
+            telegramUserId: session.telegramUserId,
         });
 
         if (!result.success) {

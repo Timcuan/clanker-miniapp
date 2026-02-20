@@ -1,18 +1,12 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { createPublicClient, http, formatEther } from 'viem';
 import { base } from 'viem/chains';
 import { cookies } from 'next/headers';
-import {
-  encodeSession,
-  decodeSession,
-  createSessionData,
-  getSessionCookieName,
-  SessionData
-} from '@/lib/serverless-db';
+import { encodeSession, getSessionCookieName, createSessionData } from '@/lib/serverless-db';
 import { sendAdminLog } from '@/lib/access-control';
 import { validateTelegramWebAppData, parseTelegramWebAppData } from '@/lib/telegram/auth';
+import { getAuthStatus } from '@/lib/auth-server';
 
 // Helper to get Telegram user ID from request headers or query
 function getTelegramUserId(request: NextRequest): number | undefined {
@@ -31,14 +25,6 @@ function getTelegramUserId(request: NextRequest): number | undefined {
   }
 
   return undefined;
-}
-
-// Get all session cookies for cleanup
-function getAllSessionCookies(cookieStore: any): string[] {
-  const allCookies = cookieStore.getAll();
-  return allCookies
-    .filter((c: any) => c.name.startsWith('clanker_session'))
-    .map((c: any) => c.name);
 }
 
 function validatePrivateKey(key: string): boolean {
@@ -62,34 +48,17 @@ function getPublicClient() {
 export async function GET(request: NextRequest) {
   try {
     const telegramUserId = getTelegramUserId(request);
-    const sessionCookieName = getSessionCookieName(telegramUserId);
-
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get(sessionCookieName)?.value;
-
-    if (!sessionCookie) {
+    if (!telegramUserId) {
       return NextResponse.json({ connected: false, address: null });
     }
 
-    // Decode session from encrypted cookie
-    const session = decodeSession(sessionCookie);
-    if (!session) {
-      // Session expired or invalid - clear cookie
-      const response = NextResponse.json({
-        connected: false,
-        address: null,
-        sessionExpired: true,
-        message: 'Session expired. Please reconnect your wallet.'
-      });
-      response.cookies.delete(sessionCookieName);
-      return response;
-    }
+    const auth = await getAuthStatus(telegramUserId);
 
-    // Verify Telegram user ID matches (if provided)
-    if (telegramUserId && session.telegramUserId && session.telegramUserId !== telegramUserId) {
-      // Session belongs to different user - don't expose it
+    if (!auth.sessionData) {
       return NextResponse.json({ connected: false, address: null });
     }
+
+    const session = auth.sessionData;
 
     // Get balance
     let balance = null;
@@ -108,7 +77,7 @@ export async function GET(request: NextRequest) {
     const expiresInDays = Math.floor(expiresIn / (24 * 60 * 60));
     const expiresInHours = Math.floor((expiresIn % (24 * 60 * 60)) / (60 * 60));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       connected: true,
       address: session.address,
       telegramUserId: session.telegramUserId,
@@ -121,6 +90,22 @@ export async function GET(request: NextRequest) {
           : `${expiresInHours}h`,
       },
     });
+
+    // Ensure cookie is synced (Persistence Hardening)
+    const cookieName = getSessionCookieName(telegramUserId);
+    const cookieStore = await cookies();
+    if (!cookieStore.get(cookieName)) {
+      const encrypted = encodeSession(auth.sessionData);
+      response.cookies.set(cookieName, encrypted, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        path: '/',
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error('Wallet GET error:', error);
     return NextResponse.json({ connected: false, address: null });

@@ -15,13 +15,14 @@ export interface TelegramUser {
 // Interface for deploy configuration - simplified to use shared types
 export interface DeployTokenConfig extends TokenInputData {
   // Config options matching config.ts
-  feeType: 'dynamic' | 'static';
+  feeType: 'dynamic' | 'static' | 'degen' | 'low';
   poolPosition: 'Standard' | 'Project';
   mevProtection: 'None' | 'BlockDelay';
   blockDelay: number;
   devBuyEth?: number;
   creatorReward?: number; // 0-100%
   salt?: `0x${string}`;
+  staticFeePercentage?: number;
 
   // Platform context
   platform?: 'telegram' | 'web' | string;
@@ -96,6 +97,7 @@ export async function deployToken(
       salt: config.salt,
       platform: config.platform,
       telegramUserId: config.telegramUserId,
+      staticFeePercentage: config.staticFeePercentage,
     });
 
     console.log('Deploying token with config:', {
@@ -180,6 +182,7 @@ export async function simulateDeployment(
       salt: config.salt,
       platform: config.platform,
       telegramUserId: config.telegramUserId,
+      staticFeePercentage: config.staticFeePercentage,
     });
 
     // Simulate

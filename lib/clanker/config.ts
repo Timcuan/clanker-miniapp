@@ -18,7 +18,7 @@ export interface TokenInputData {
 }
 
 export interface BuildConfigOptions {
-  feeType?: 'dynamic' | 'static';
+  feeType?: 'dynamic' | 'static' | 'degen' | 'low';
   poolPositionType?: 'Standard' | 'Project';
   mevModuleType?: MevModuleType;
   blockDelay?: number;
@@ -31,6 +31,8 @@ export interface BuildConfigOptions {
   devBuyEth?: number;
   // Vanity salt
   salt?: `0x${string}`;
+  // Custom static fee
+  staticFeePercentage?: number;
 }
 
 // Get platform-specific context
@@ -88,6 +90,22 @@ export function buildTokenConfig(
     metadata.socialMediaUrls = input.socialMediaUrls;
   }
 
+  // Map fee config
+  let fees: any = FEE_CONFIGS.DynamicBasic;
+  if (feeType === 'static') {
+    // Override static fee with custom percentage if static
+    const staticFeeBps = (options.staticFeePercentage || 10) * 100;
+    fees = {
+      ...FEE_CONFIGS.StaticFlatCustom,
+      clankerFee: staticFeeBps,
+      pairedFee: staticFeeBps
+    };
+  } else if (feeType === 'degen') {
+    fees = FEE_CONFIGS.HighFeeDegen;
+  } else if (feeType === 'low') {
+    fees = FEE_CONFIGS.ExperimentalLow;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const config: any = {
     name: input.name,
@@ -122,7 +140,7 @@ export function buildTokenConfig(
       ],
     },
 
-    fees: feeType === 'dynamic' ? FEE_CONFIGS.DynamicBasic : FEE_CONFIGS.StaticFlat10Percent,
+    fees,
 
     mevModuleConfig: {
       type: mevModuleType,
@@ -133,8 +151,8 @@ export function buildTokenConfig(
 
     // Sniper fees configuration for MEV protection
     sniperFees: {
-      startingFee: mevModuleType === MevModuleType.BlockDelay ? 99000 : 30000, // 9.9% or 3% min
-      endingFee: 30000, // 3% minimum
+      startingFee: mevModuleType === MevModuleType.BlockDelay ? (feeType === 'degen' ? 199000 : 99000) : 30000,
+      endingFee: feeType === 'degen' ? 150000 : 30000,
       secondsToDecay: mevModuleType === MevModuleType.BlockDelay ? blockDelay * 2 : 60,
     },
   };

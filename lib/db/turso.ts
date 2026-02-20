@@ -10,7 +10,6 @@ export interface DbUser {
   username: string | null;
   first_name: string | null;
   wallet_address: string | null;
-  access_code: string | null;
   encrypted_session: string | null;
   last_active_at?: string;
   is_admin: number;
@@ -83,7 +82,6 @@ function rowToUser(row: Row): DbUser {
     username: row.username as string | null,
     first_name: row.first_name as string | null,
     wallet_address: row.wallet_address as string | null,
-    access_code: row.access_code as string | null,
     encrypted_session: row.encrypted_session as string | null,
     is_admin: row.is_admin as number,
     is_authorized: row.is_authorized as number || 0,
@@ -140,7 +138,6 @@ export async function initDatabase() {
       telegram_id INTEGER UNIQUE NOT NULL,
       username TEXT,
       wallet_address TEXT,
-      access_code TEXT,
       encrypted_session TEXT,
       last_active_at TEXT,
       is_admin INTEGER DEFAULT 0,
@@ -325,9 +322,12 @@ export async function unauthorizeUser(telegramId: number): Promise<void> {
 
 export async function isUserAuthorized(telegramId: number): Promise<boolean> {
   try {
-    // Admin is always authorized
-    if (telegramId === PRIMARY_ADMIN_ID) return true;
+    // Primary admin is always authorized by default
+    if (telegramId === Number(process.env.PRIMARY_ADMIN_ID) || telegramId === 1558397457) {
+      return true;
+    }
 
+    await ensureDb();
     const user = await findUserByTelegramId(telegramId);
     return user ? user.is_authorized === 1 : false;
   } catch (error) {
@@ -336,55 +336,13 @@ export async function isUserAuthorized(telegramId: number): Promise<boolean> {
   }
 }
 
-export async function setUserAccessCode(telegramId: number, code: string): Promise<void> {
-  try {
-    await ensureDb();
-    const db = getClient();
-    await db.execute({
-      sql: 'UPDATE users SET access_code = ?, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?',
-      args: [code, telegramId],
-    });
-  } catch (error) {
-    console.error('[DB] setUserAccessCode error:', error);
-    throw error;
-  }
-}
-
-export async function getUserAccessCode(telegramId: number): Promise<string | null> {
-  try {
-    await ensureDb();
-    const db = getClient();
-    const result = await db.execute({
-      sql: 'SELECT access_code FROM users WHERE telegram_id = ?',
-      args: [telegramId],
-    });
-    return result.rows[0]?.access_code as string | null;
-  } catch (error) {
-    console.error('[DB] getUserAccessCode error:', error);
-    throw error;
-  }
-}
-
-export async function revokeUserAccess(telegramId: number): Promise<void> {
-  try {
-    await ensureDb();
-    const db = getClient();
-    await db.execute({
-      sql: 'UPDATE users SET access_code = NULL, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?',
-      args: [telegramId],
-    });
-  } catch (error) {
-    console.error('[DB] revokeUserAccess error:', error);
-    throw error;
-  }
-}
 
 export async function getAllUsersWithAccess(): Promise<DbUser[]> {
   try {
     await ensureDb();
     const db = getClient();
     const result = await db.execute(
-      'SELECT * FROM users WHERE access_code IS NOT NULL OR is_authorized = 1 ORDER BY updated_at DESC'
+      'SELECT * FROM users WHERE is_authorized = 1 ORDER BY updated_at DESC'
     );
     return result.rows.map(rowToUser);
   } catch (error) {
@@ -404,7 +362,7 @@ export async function getUserStats(): Promise<{
     const db = getClient();
     const [users, access, deployments, successful] = await Promise.all([
       db.execute('SELECT COUNT(*) as count FROM users'),
-      db.execute('SELECT COUNT(*) as count FROM users WHERE access_code IS NOT NULL OR is_authorized = 1'),
+      db.execute('SELECT COUNT(*) as count FROM users WHERE is_authorized = 1'),
       db.execute('SELECT COUNT(*) as count FROM deployments'),
       db.execute("SELECT COUNT(*) as count FROM deployments WHERE status = 'success'"),
     ]);
@@ -469,7 +427,6 @@ export async function getSession(token: string): Promise<(DbSession & { user: Db
         username: row.username as string | null,
         first_name: row.first_name as string | null,
         wallet_address: row.user_wallet as string | null,
-        access_code: null,
         encrypted_session: row.encrypted_session as string | null,
         is_admin: row.is_admin as number,
         is_authorized: row.is_authorized as number || 0,

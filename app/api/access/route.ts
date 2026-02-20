@@ -1,67 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  verifyAccess,
-  isAdminUser,
-  sendAdminLog,
-} from '@/lib/access-control';
+import { getAuthStatus } from '@/lib/auth-server';
 
-// Helper to get Telegram user ID from request
+// Helper to get Telegram user ID
 function getTelegramUserId(request: NextRequest): number | undefined {
   const headerUserId = request.headers.get('x-telegram-user-id');
-  if (headerUserId) {
-    const parsed = parseInt(headerUserId, 10);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-
+  if (headerUserId) return parseInt(headerUserId, 10);
   const queryUserId = request.nextUrl.searchParams.get('telegramUserId');
-  if (queryUserId) {
-    const parsed = parseInt(queryUserId, 10);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-
+  if (queryUserId) return parseInt(queryUserId, 10);
   return undefined;
 }
 
-// GET - Check if user has access
+// GET - Check access status
 export async function GET(request: NextRequest) {
   try {
     const telegramUserId = getTelegramUserId(request);
+    if (!telegramUserId) return NextResponse.json({ hasAccess: false, error: 'ID_REQUIRED' });
 
-    if (!telegramUserId) {
-      return NextResponse.json({ hasAccess: false, error: 'User ID required' });
-    }
-
-    // verifyAccess now checks both Admin status and DB authorization
-    const { hasAccess, error } = await verifyAccess(telegramUserId);
-    const isAdmin = isAdminUser(telegramUserId);
-
-    if (hasAccess) {
-      return NextResponse.json({
-        hasAccess: true,
-        isAdmin,
-        telegramUserId,
-      });
-    }
-
+    const auth = await getAuthStatus(telegramUserId);
     return NextResponse.json({
-      hasAccess: false,
-      error: error || 'Access denied',
+      hasAccess: auth.hasAccess,
+      isAdmin: auth.isAdmin,
+      error: auth.hasAccess ? null : (auth.error || 'UNAUTHORIZED')
     });
   } catch (error) {
-    console.error('[Access] GET error:', error);
-    return NextResponse.json({ hasAccess: false, error: 'Validation failed' });
+    return NextResponse.json({ hasAccess: false, error: 'SERVICE_ERROR' });
   }
 }
 
-// POST - (Legacy/Optional) Currently access is granted by Admin via ID
-export async function POST(request: NextRequest) {
-  return NextResponse.json({
-    success: false,
-    error: 'Access is managed by Admin. Please contact an admin for authorization.'
-  }, { status: 403 });
-}
-
-// Health check
-export async function HEAD() {
-  return new Response(null, { status: 200 });
+// POST - Disabled (Hardened Security)
+export async function POST() {
+  return NextResponse.json({ error: 'Direct access code entry is disabled. Contact Admin.' }, { status: 403 });
 }

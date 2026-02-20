@@ -4,10 +4,9 @@ import {
   grantAccess,
   revokeAccess,
   verifyAccess,
-  PRIMARY_ADMIN_ID,
   sendAdminLog
 } from '@/lib/access-control';
-import { authorizeUser, isUserAuthorized, initDatabase, findUserByTelegramId } from '@/lib/db/turso';
+import { initDatabase, findUserByTelegramId, createUser, updateUser, getUserStats } from '@/lib/db/turso';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
@@ -35,17 +34,13 @@ interface InlineKeyboardButton {
   callback_data?: string;
 }
 
-// Simple in-memory rate limiting to prevent spam
 const rateLimit = new Map<number, number>();
-const RATE_LIMIT_MS = 1000; // 1 message per second
+const RATE_LIMIT_MS = 1000;
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. FAST FAIL & DB READY
     if (!BOT_TOKEN) return NextResponse.json({ ok: true });
 
-    // Resilience: Attempt DB init but don't hard crash if it fails
-    // This allows the bot to at least respond with an "Under Maintenance" message
     let dbReady = true;
     try {
       await initDatabase();
@@ -60,189 +55,120 @@ export async function POST(request: NextRequest) {
     const userId = update.message?.from.id || update.callback_query?.from.id || 0;
     const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id || 0;
 
-    // 2. RATE LIMITING
     const now = Date.now();
     const lastSeen = rateLimit.get(userId) || 0;
-    if (now - lastSeen < RATE_LIMIT_MS) {
-      return NextResponse.json({ ok: true });
-    }
+    if (now - lastSeen < RATE_LIMIT_MS) return NextResponse.json({ ok: true });
     rateLimit.set(userId, now);
 
-    // 3. LOGIC HANDLERS
+    // --- MESSAGE HANDLER ---
     if (update.message?.text) {
       const text = update.message.text.trim();
       const isAdmin = isAdminUser(userId);
 
-      // FALLBACK: If DB is down, only allow Admin or basic ID check
-      if (!dbReady) {
-        if (isAdmin) {
-          await sendMessage(chatId, "⚠️ <b>Warning</b>: Database connection unstable. Basic admin functions still active.");
-        } else {
-          await sendMessage(chatId, "🛠 <b>Maintenance</b>: Systems are currently being updated. Please try again in a few minutes.");
-          return NextResponse.json({ ok: true });
+      if (!dbReady && !isAdmin) {
+        await sendMessage(chatId, "🛠 <b>Maintenance</b>: Systems are currently being updated. Please try again soon.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // Proactive Registration
+      if (dbReady) {
+        try {
+          const existingUser = await findUserByTelegramId(userId);
+          if (!existingUser) {
+            await createUser(userId, update.message.from.username, update.message.from.first_name);
+            console.log(`[Bot] Registered: ${userId}`);
+          } else {
+            await updateUser(userId, {
+              last_active_at: new Date().toISOString(),
+              username: update.message.from.username || undefined
+            });
+          }
+        } catch (e) {
+          console.error('[Bot] DB logging error:', e);
         }
       }
 
-      const { hasAccess } = await verifyAccess(userId);
+      const accessCheck = await verifyAccess(userId);
+      const hasAccess = accessCheck.hasAccess;
 
-      // --- COMMANDS ---
-
-      // /start
+      // Commands
       if (text === '/start') {
-        if (isAdmin) {
-          await sendMessage(chatId,
-            `<b>UMKM Terminal v2.0</b>\n\nWelcome back, Admin! Use the buttons below to manage deployments or open the terminal directly.`,
-            [
-              [{ text: 'OPEN TERMINAL', web_app: { url: APP_URL } }],
-              [
-                { text: 'DEPLOY', web_app: { url: `${APP_URL}/deploy` } },
-                { text: 'HISTORY', web_app: { url: `${APP_URL}/history` } }
-              ],
-              [{ text: 'SETTINGS', web_app: { url: `${APP_URL}/settings` } }],
-              [{ text: 'STATS', callback_data: 'stats' }, { text: 'USERS', callback_data: 'users' }]
-            ]
-          );
-        } else if (hasAccess) {
-          await sendMessage(chatId,
-            `<b>UMKM Terminal</b>\n\nAuth: <b>Verified</b>\n\nYour deployment terminal is ready. Click below to begin:`,
-            [
-              [{ text: 'OPEN TERMINAL', web_app: { url: APP_URL } }]
-            ]
-          );
+        if (isAdmin || hasAccess) {
+          const welcomeMsg = isAdmin
+            ? `<b>UMKM Terminal v2.0</b>\n\nWelcome back, Admin. Your terminal is ready for production:`
+            : `<b>UMKM Terminal v2.0</b>\n\nYour deployment terminal is authorized and ready:`;
+
+          await sendMessage(chatId, welcomeMsg, [[{ text: 'OPEN TERMINAL', web_app: { url: APP_URL } }]]);
         } else {
           await sendMessage(chatId,
-            `<b>Access Restricted</b>\n\nYour user ID <code>${userId}</code> is not authorized.\n\nContact the administrator to request access.`,
-            [[{ text: 'My ID', callback_data: 'view_id' }]]
+            `<b>Access Restricted</b>\n\nYour user ID <code>${userId}</code> is not authorized.\n\n` +
+            `<b>How to gain access?</b>\n` +
+            `1. Click "Copy My ID" below\n` +
+            `2. Send it to @admin\n` +
+            `3. Wait for authorization notification`,
+            [[{ text: 'Copy My ID', callback_data: `copy_id_${userId}` }]]
           );
-
-          // Fallback: Notify admin of new potential user
-          sendAdminLog(`User Requested Access\nID: <code>${userId}</code>\nUser: @${update.message.from.username || update.message.from.first_name}`);
+          sendAdminLog(`🚨 <b>Access Attempt</b>\nUser: @${update.message.from.username}\nID: <code>${userId}</code>`);
         }
-      }
-
-      // /id
-      else if (text === '/id') {
-        const isAdmin = isAdminUser(userId);
-        await sendMessage(chatId, 
-          `System ID: <code>${userId}</code>\n` +
-          `Status: ${isAdmin ? 'Admin (Full Access)' : (hasAccess ? 'Authorized User' : 'Restricted')}\n` +
-          `${!isAdmin ? 'Request admin access by sending this ID to the developer.' : ''}`
-        );
-      }
-
-      // /grant [id] (Admin)
-      else if (text.startsWith('/grant') && isAdmin) {
-        const targetId = parseInt(text.split(' ')[1]);
-        if (isNaN(targetId)) {
-          await sendMessage(chatId, "Format: <code>/grant [user_id]</code>");
-          return NextResponse.json({ ok: true });
-        }
-
+      } else if (text === '/id') {
+        await sendMessage(chatId, `System ID: <code>${userId}</code>\nStatus: ${isAdmin ? 'Admin' : (hasAccess ? 'Authorized' : 'Restricted')}`);
+      } else if (text === '/stats' && isAdmin) {
         try {
+          const stats = await getUserStats();
+          await sendMessage(chatId, `📊 <b>Stats</b>\n\nUsers: ${stats.totalUsers}\nAuth: ${stats.usersWithAccess}\nDeploys: ${stats.totalDeployments}\nSuccess: ${stats.successfulDeployments}`);
+        } catch (e) {
+          await sendMessage(chatId, "❌ Error fetching stats");
+        }
+      } else if (text.startsWith('/grant') && isAdmin) {
+        const targetId = parseInt(text.split(' ')[1]);
+        if (!isNaN(targetId)) {
           await grantAccess(targetId);
-          await sendMessage(chatId, `✅ <b>Authorized</b>: <code>${targetId}</code>`);
-
-          // Notify target user
-          await sendMessage(targetId, `✨ <b>Auth Update</b>\n\nYou have been authorized for Terminal access. Use /start to begin.`);
-
-          // Admin log
-          sendAdminLog(`<b>Admin Action</b>: Access GRANTED to <code>${targetId}</code> by <code>${userId}</code>`);
-        } catch (err) {
-          await sendMessage(chatId, "❌ <b>Error</b>: Failed to authorize user.");
+          await sendMessage(chatId, `✅ Authorized: <code>${targetId}</code>`);
+          await sendMessage(targetId, `✨ <b>Authorized!</b>\nYour access to the terminal has been granted. Click /start to begin.`);
+          sendAdminLog(`Admin ${userId} granted access to ${targetId}`);
         }
-      }
-
-      // /revoke [id] (Admin)
-      else if (text.startsWith('/revoke') && isAdmin) {
+      } else if (text.startsWith('/revoke') && isAdmin) {
         const targetId = parseInt(text.split(' ')[1]);
-        if (isNaN(targetId)) {
-          await sendMessage(chatId, "Format: <code>/revoke [user_id]</code>");
-          return NextResponse.json({ ok: true });
-        }
-
-        try {
+        if (!isNaN(targetId)) {
           await revokeAccess(targetId);
-          await sendMessage(chatId, `🚫 <b>Revoked</b>: <code>${targetId}</code>`);
-          sendAdminLog(`<b>Admin Action</b>: Access REVOKED from <code>${targetId}</code> by <code>${userId}</code>`);
-        } catch (err) {
-          await sendMessage(chatId, "❌ <b>Error</b>: Failed to revoke access.");
+          await sendMessage(chatId, `🚫 Revoked: <code>${targetId}</code>`);
         }
-      }
-
-      // /deploy
-      else if (text === '/deploy') {
-        await sendMessage(chatId, `<b>New Deployment</b>\nClick below to start a new token deployment:`, [
-          [{ text: 'Open Deploy Screen', web_app: { url: `${APP_URL}/deploy` } }]
-        ]);
-      }
-
-      // /history
-      else if (text === '/history') {
-        await sendMessage(chatId, `<b>Token History</b>\nView your previous deployments and status:`, [
-          [{ text: 'View History', web_app: { url: `${APP_URL}/history` } }]
-        ]);
-      }
-
-      // /settings
-      else if (text === '/settings') {
-        await sendMessage(chatId, `<b>Application Settings</b>\nManage your wallets and preferences:`, [
-          [{ text: 'Open Settings', web_app: { url: `${APP_URL}/settings` } }]
-        ]);
-      }
-
-      // /help
-      else if (text === '/help') {
-        const msg = isAdmin
-          ? `<b>Admin Control Center</b>\n\n` +
-          `/start - Open Admin Dashboard\n` +
-          `/deploy - Launch New Token\n` +
-          `/history - View All Deployments\n` +
-          `/settings - Manage Wallet & UI\n` +
-          `/id - Show your Telegram ID\n` +
-          `/grant [id] - Authorize User\n` +
-          `/revoke [id] - Remove User`
-          : `<b>User Guide</b>\n\n` +
-          `/start - Open App Terminal\n` +
-          `/id - Show your Telegram ID\n` +
-          `/help - View this message`;
-        await sendMessage(chatId, msg);
+      } else if (text === '/help') {
+        const help = isAdmin
+          ? `<b>Admin Commands</b>\n/start - Dashboard\n/stats - Stats\n/grant [id]\n/revoke [id]`
+          : `<b>Commands</b>\n/start - Open App\n/id - Show ID`;
+        await sendMessage(chatId, help);
       }
     }
 
-    // --- CALLBACKS ---
+    // --- CALLBACK HANDLER ---
     if (update.callback_query) {
       const { id, data, from } = update.callback_query;
-      if (data === 'view_id') {
-        await answerCallback(id);
-        await sendMessage(chatId, `Your System ID: <code>${from.id}</code>`);
+      if (dbReady) updateUser(from.id, { last_active_at: new Date().toISOString() }).catch(() => { });
+
+      if (data?.startsWith('copy_id_')) {
+        const targetId = data.split('_')[2];
+        await answerCallback(id, "ID Ready to copy!");
+        await sendMessage(chatId, `Target ID: <code>${targetId}</code>\nTo authorize:\n<code>/grant ${targetId}</code>`);
       }
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[Bot Webhook Error]:', error);
-    return NextResponse.json({ ok: true }); // Always return 200 to Telegram
+    console.error('[Bot Fatal]:', error);
+    return NextResponse.json({ ok: true });
   }
 }
 
 async function sendMessage(chatId: number, text: string, buttons?: InlineKeyboardButton[][]) {
   try {
-    const payload: any = {
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-    };
-    if (buttons) payload.reply_markup = { inline_keyboard: buttons };
-
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', reply_markup: buttons ? { inline_keyboard: buttons } : undefined }),
     });
     return res.ok;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 }
 
 async function answerCallback(id: string, text?: string) {

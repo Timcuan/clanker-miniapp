@@ -40,7 +40,7 @@ interface TokenConfig {
   creatorReward: number; // 0-100%
 
   // Pool & Fees
-  feeType: 'dynamic' | 'static';
+  feeType: 'dynamic' | 'static' | 'degen' | 'low';
   poolPosition: 'Standard' | 'Project';
 
   // MEV Protection
@@ -54,6 +54,7 @@ interface TokenConfig {
   vanityEnabled: boolean;
   vanityPrefix: string;
   salt: string;
+  staticFeePercentage: number;
 }
 
 const INITIAL_CONFIG: TokenConfig = {
@@ -77,6 +78,7 @@ const INITIAL_CONFIG: TokenConfig = {
   vanityEnabled: false,
   vanityPrefix: '',
   salt: '',
+  staticFeePercentage: 10,
 };
 
 const STORAGE_KEY = 'clanker_deploy_form';
@@ -248,8 +250,8 @@ function MobileInput({
   return (
     <div className="space-y-1">
       {label && (
-        <label className="block font-mono text-xs text-gray-500">
-          <span className="text-[#0052FF] font-medium">const</span> {label} <span className="text-gray-400">=</span>
+        <label className="block font-mono text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-[#0052FF] font-medium">const</span> {label} <span className="text-gray-400 dark:text-gray-600">=</span>
         </label>
       )}
       <div className="relative">
@@ -278,8 +280,8 @@ function MobileInput({
           <Clipboard className="w-4 h-4" />
         </button>
       </div>
-      {hint && !error && <p className="font-mono text-[10px] text-gray-500">{hint}</p>}
-      {error && <p className="font-mono text-xs text-red-500">Error: {error}</p>}
+      {hint && !error && <p className="font-mono text-[10px] text-gray-500 dark:text-gray-500">{hint}</p>}
+      {error && <p className="font-mono text-xs text-red-500 dark:text-red-400">Error: {error}</p>}
     </div>
   );
 }
@@ -296,7 +298,7 @@ function OptionSelector({
 }) {
   return (
     <div className="space-y-2">
-      <label className="block font-mono text-xs text-gray-500">{label}</label>
+      <label className="block font-mono text-xs text-gray-500 dark:text-gray-400">{label}</label>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => (
           <button
@@ -305,7 +307,7 @@ function OptionSelector({
             onClick={() => { onChange(opt); hapticFeedback('light'); }}
             className={`p-3 rounded-xl border font-mono text-xs text-left transition-all ${value === opt
               ? 'border-[#0052FF] bg-[#0052FF]/10 text-[#0052FF]'
-              : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700'
+              : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
           >
             <div className="font-semibold">{opt}</div>
@@ -329,13 +331,13 @@ function CollapsibleSection({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-gray-100 rounded-xl overflow-hidden bg-white">
+    <div className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40">
       <button
         type="button"
         onClick={() => { setIsOpen(!isOpen); hapticFeedback('light'); }}
-        className="w-full p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+        className="w-full p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       >
-        <span className="font-mono text-xs flex items-center gap-2 text-gray-700">
+        <span className="font-mono text-xs flex items-center gap-2 text-gray-700 dark:text-gray-300">
           <Icon className="w-4 h-4 text-[#0052FF]" />
           {title}
         </span>
@@ -349,7 +351,7 @@ function CollapsibleSection({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="p-3 space-y-4 border-t border-gray-100">
+            <div className="p-3 space-y-4 border-t border-gray-100 dark:border-gray-800">
               {children}
             </div>
           </motion.div>
@@ -370,6 +372,15 @@ export default function DeployPage() {
   const [step, setStep] = useState<DeployStep>('form');
   const [config, setConfig] = useState<TokenConfig>(INITIAL_CONFIG);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [ethPrice, setEthPrice] = useState<number | null>(null);
+
+  // Fetch ETH Price
+  useEffect(() => {
+    fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot')
+      .then(res => res.json())
+      .then(data => setEthPrice(parseFloat(data.data.amount)))
+      .catch(err => console.error('Failed to fetch ETH price', err));
+  }, []);
 
   // Persistence: Load from localStorage on mount
   useEffect(() => {
@@ -400,12 +411,13 @@ export default function DeployPage() {
 
     if (config.vanityEnabled) {
       // Logic: Vanity ON = B07 standard
-      if (!config.salt.startsWith('0xb07')) {
+      // Always regenerate salt if it's not a valid B07 salt
+      if (!config.salt || !config.salt.startsWith('0xb07')) {
         const randomPart = Array.from({ length: 61 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
         const b07Salt = '0xb07' + randomPart;
         setConfig(p => ({ ...p, salt: b07Salt }));
       }
-    } else if (isLoaded) {
+    } else {
       // Logic: Vanity OFF = Random Address/Salt
       // Only randomize if it was B07 or empty
       if (!config.salt || config.salt.startsWith('0xb07')) {
@@ -413,7 +425,7 @@ export default function DeployPage() {
         setConfig(p => ({ ...p, salt: fullRandom }));
       }
     }
-  }, [config.vanityEnabled, isLoaded]);
+  }, [config.vanityEnabled, isLoaded]); // Removed config.salt to prevent loops
 
   // Persistence: Save to localStorage on change
   useEffect(() => {
@@ -859,9 +871,20 @@ export default function DeployPage() {
     }
   };
 
+  // Helper to format balance with USD
+  const formatBalance = (bal: string | null) => {
+    if (!bal) return 'Loading...';
+    const eth = parseFloat(bal);
+    if (ethPrice) {
+      const usd = (eth * ethPrice).toFixed(2);
+      return `${eth.toFixed(4)} ETH (~$${usd})`;
+    }
+    return `${eth.toFixed(4)} ETH`;
+  };
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 bg-gradient-to-b from-white via-blue-50/30 to-white relative overflow-hidden">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 relative overflow-hidden">
 
         <Terminal title="umkm@base:~/deploy" className="max-w-md w-full relative z-10">
           <TerminalLine text="Error: Wallet not connected" type="error" />
@@ -874,21 +897,21 @@ export default function DeployPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-gradient-to-b from-white via-blue-50/30 to-white relative overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col relative overflow-hidden transition-colors bg-gradient-to-br from-white via-gray-50 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
 
-      <div className="absolute -top-20 -right-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-20 -right-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 dark:bg-[#0052FF]/10 rounded-full blur-3xl pointer-events-none" />
 
-      <header className="relative z-10 px-3 sm:px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 bg-white/90 backdrop-blur-md">
+      <header className="relative z-10 px-3 sm:px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
         <div className="flex items-center gap-2">
           {!isTelegram && (
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => router.push('/')} className="p-2 rounded-xl hover:bg-gray-100 text-gray-500">
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => router.push('/')} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400">
               <ArrowLeft className="w-5 h-5" />
             </motion.button>
           )}
           <div className="flex items-center gap-2">
             <ClankerLogo size="sm" animated={true} />
             <div>
-              <h1 className="font-display font-bold text-gray-800 dark:text-white text-sm sm:text-base">Deploy</h1>
+              <h1 className="font-display font-bold text-gray-800 dark:text-gray-100 text-sm sm:text-base">Deploy</h1>
               <p className="font-mono text-[10px] text-gray-500 dark:text-gray-400">Clanker SDK v4</p>
             </div>
           </div>
@@ -904,12 +927,29 @@ export default function DeployPage() {
             {step === 'form' && (
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <Terminal title="Token Configuration" className="w-full">
-                  {balance && (
-                    <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-900 border border-[#0052FF]/10 flex items-center justify-between">
-                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">Balance:</span>
-                      <span className="font-mono text-sm text-[#0052FF] font-bold">{parseFloat(balance).toFixed(4)} ETH</span>
-                    </div>
-                  )}
+                  {/* Balance & Advanced Toggle */}
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    {balance ? (
+                      <div className="flex-1 p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 flex items-center justify-between">
+                        <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">ETH Balance</span>
+                        <span className="font-mono text-xs text-[#0052FF] font-bold">{formatBalance(balance)}</span>
+                      </div>
+                    ) : <div className="flex-1" />}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAdvanced(!isAdvanced);
+                        hapticFeedback('light');
+                      }}
+                      className={`p-2.5 rounded-lg border flex items-center gap-2 transition-all ${isAdvanced
+                        ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-700 text-gray-800 dark:text-gray-200'
+                        : 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span className="font-mono text-[10px] font-medium">{isAdvanced ? 'ADVANCED' : 'BASIC'}</span>
+                    </button>
+                  </div>
 
                   {/* Basic Token Info */}
                   <div className="space-y-4 mb-4">
@@ -949,8 +989,8 @@ export default function DeployPage() {
                     {/* Image with Pinata */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="block font-mono text-xs text-gray-500">
-                          <span className="text-[#0052FF] font-medium">const</span> image <span className="text-gray-400">=</span>
+                        <label className="block font-mono text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-[#0052FF] font-medium">const</span> image <span className="text-gray-400 dark:text-gray-600">=</span>
                         </label>
                       </div>
                       <MobileInput
@@ -961,8 +1001,8 @@ export default function DeployPage() {
                         error={errors.image}
                       />
                       {config.image && (
-                        <div className="flex gap-3 items-center p-2 rounded-xl bg-gray-50 border border-gray-100">
-                          <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white border border-gray-200 shrink-0">
+                        <div className="flex gap-3 items-center p-2 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
+                          <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shrink-0">
                             <img
                               src={getPreviewUrl(config.image)}
                               alt="Token preview"
@@ -972,7 +1012,7 @@ export default function DeployPage() {
                               }}
                             />
                           </div>
-                          <p className="font-mono text-[10px] text-gray-500 truncate max-w-[200px]">{formatImageUrl(config.image)}</p>
+                          <p className="font-mono text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[200px]">{formatImageUrl(config.image)}</p>
                         </div>
                       )}
                     </div>
@@ -998,20 +1038,49 @@ export default function DeployPage() {
                           exit={{ height: 0, opacity: 0 }}
                           className="space-y-3 overflow-hidden"
                         >
-                          {/* Dev Buy */}
-                          <div className="p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Rocket className="w-4 h-4 text-[#0052FF]" />
-                              <span className="font-mono text-xs font-medium text-gray-700 dark:text-gray-300">Initial Buy (Dev Snipe)</span>
+                          {/* Pool Type */}
+                          <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Zap className="w-4 h-4 text-amber-500" />
+                              <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Token Economics</span>
                             </div>
-                            <MobileInput
-                              label="ethAmount"
-                              value={config.devBuyEth}
-                              onChange={(v) => setConfig(p => ({ ...p, devBuyEth: v }))}
-                              placeholder="0"
-                              error={errors.devBuyEth}
-                              hint="Amount of ETH to buy immediately"
-                            />
+
+                            <div className="space-y-4">
+                              <OptionSelector
+                                label="Fee Structure"
+                                value={config.feeType}
+                                options={['dynamic', 'static']}
+                                onChange={(v) => setConfig(p => ({ ...p, feeType: v as any }))}
+                                descriptions={{
+                                  dynamic: 'Standard (1-10%)',
+                                  static: `Fixed (${config.staticFeePercentage}%)`
+                                }}
+                              />
+
+                              {/* Static Fee Slider */}
+                              {config.feeType === 'static' && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  className="pt-2 px-1"
+                                >
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-mono text-gray-500">Static Fee %</span>
+                                    <span className="text-xs font-mono font-bold text-[#0052FF]">{config.staticFeePercentage}%</span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="50"
+                                    step="0.1"
+                                    value={config.staticFeePercentage}
+                                    onChange={(e) => setConfig(p => ({ ...p, staticFeePercentage: parseFloat(e.target.value) }))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-[#0052FF]"
+                                  />
+                                  <p className="mt-1 text-[10px] text-gray-400 font-mono text-right">0% - 50% Range</p>
+                                </motion.div>
+                              )}
+                            </div>
                           </div>
 
                           {/* Recipients */}
@@ -1022,65 +1091,34 @@ export default function DeployPage() {
                             </div>
                           </CollapsibleSection>
 
-                          {/* Pool Type */}
-                          <CollapsibleSection title="Pool Configuration" icon={Zap}>
-                            <OptionSelector
-                              label="Position Type"
-                              value={config.poolPosition}
-                              options={['Standard', 'Project']}
-                              onChange={(v) => setConfig(p => ({ ...p, poolPosition: v as any }))}
-                              descriptions={{ Standard: 'High Volatility', Project: 'Stable Liquidity' }}
-                            />
-                          </CollapsibleSection>
-
-                          {/* Vanity Section */}
-                          <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-900/10 space-y-3">
+                          {/* Vanity Section - Simple Toggle */}
+                          <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-900/10 space-y-4">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                <span className="font-mono text-xs font-medium text-gray-700 dark:text-gray-300">Smart Vanity (B07 Std)</span>
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                                  <Shield className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div>
+                                  <h4 className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">Vanity Address</h4>
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Generate a custom contract address</p>
+                                </div>
                               </div>
+
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled, salt: !p.vanityEnabled ? p.salt : '' }));
+                                  setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled }));
                                   hapticFeedback('medium');
                                 }}
-                                className={`w-10 h-6 rounded-full transition-colors relative ${config.vanityEnabled ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-800'}`}
+                                className={`w-12 h-7 rounded-full transition-all duration-300 relative ${config.vanityEnabled
+                                  ? 'bg-purple-600 shadow-inner'
+                                  : 'bg-gray-200 dark:bg-gray-700'
+                                  }`}
                               >
-                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${config.vanityEnabled ? 'left-5' : 'left-1'}`} />
+                                <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${config.vanityEnabled ? 'left-6' : 'left-1'
+                                  }`} />
                               </button>
                             </div>
-
-                            {config.vanityEnabled && (
-                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="space-y-3 overflow-hidden">
-                                <div className="relative">
-                                  <MobileInput
-                                    label="salt"
-                                    value={config.salt}
-                                    onChange={(v) => setConfig(p => ({ ...p, salt: v }))}
-                                    placeholder="0x..."
-                                    error={errors.salt}
-                                    hint="32-byte hex salt for deterministic address"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const randomSalt = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-                                      setConfig(p => ({ ...p, salt: randomSalt }));
-                                      hapticFeedback('light');
-                                    }}
-                                    className="absolute right-12 top-[30px] p-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
-                                    title="Generate Random Salt"
-                                  >
-                                    <RefreshCw className="w-4 h-4" />
-                                  </button>
-                                </div>
-                                <div className="text-[10px] text-gray-500 font-mono p-2 bg-white/50 dark:bg-black/20 rounded border border-purple-100 dark:border-purple-900/20">
-                                  <b>SMART LOGIC:</b> Vanity ON uses Clanker B07 style salt. Vanity OFF uses a cryptographically random salt for unique addresses.
-                                </div>
-                              </motion.div>
-                            )}
                           </div>
                         </motion.div>
                       )}
@@ -1099,20 +1137,20 @@ export default function DeployPage() {
               <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <Terminal title="Review Deployment" className="w-full">
                   <TerminalLine text="Review your configuration:" type="command" />
-                  <CLICard className="mt-4">
+                  <CLICard className="mt-4 bg-white dark:bg-gray-900/80 border-gray-200 dark:border-gray-800">
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="text-gray-800 font-bold">{config.name}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Symbol</span><span className="text-[#0052FF] font-medium">${config.symbol}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Name</span><span className="text-gray-800 dark:text-gray-200 font-bold">{config.name}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Symbol</span><span className="text-[#0052FF] font-medium">${config.symbol}</span></div>
                       {config.image && (
                         <div className="flex justify-between items-start">
-                          <span className="text-gray-500">Image</span>
-                          <span className="text-gray-600 text-xs truncate max-w-[180px]">{formatImageUrl(config.image)}</span>
+                          <span className="text-gray-500 dark:text-gray-400">Image</span>
+                          <span className="text-gray-600 dark:text-gray-300 text-xs truncate max-w-[180px]">{formatImageUrl(config.image)}</span>
                         </div>
                       )}
                       {config.description && (
                         <div className="flex justify-between items-start">
-                          <span className="text-gray-500">Description</span>
-                          <span className="text-gray-600 text-xs truncate max-w-[180px]">{config.description}</span>
+                          <span className="text-gray-500 dark:text-gray-400">Description</span>
+                          <span className="text-gray-600 dark:text-gray-300 text-xs truncate max-w-[180px]">{config.description}</span>
                         </div>
                       )}
 
@@ -1156,37 +1194,37 @@ export default function DeployPage() {
                       ) : (
                         <div
                           onClick={() => router.push('/settings')}
-                          className="bg-white border text-left border-gray-200 rounded-2xl p-4 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer hover:border-blue-200 hover:shadow-sm mb-6 group"
+                          className="bg-white dark:bg-gray-900 border text-left border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm mb-6 group"
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
                               <Settings className="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" />
                             </div>
                             <div>
-                              <p className="font-bold text-gray-900">Relay Server Mode</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Using default shared connection</p>
+                              <p className="font-bold text-gray-900 dark:text-white">Relay Server Mode</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Using default shared connection</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 text-[#0052FF] font-bold text-sm bg-blue-50 px-3 py-1.5 rounded-lg group-hover:bg-[#0052FF] group-hover:text-white transition-all">
+                          <div className="flex items-center gap-1 text-[#0052FF] font-bold text-sm bg-blue-50 dark:bg-blue-900/10 px-3 py-1.5 rounded-lg group-hover:bg-[#0052FF] group-hover:text-white transition-all">
                             Setup Wallet <ChevronRight className="w-4 h-4" />
                           </div>
                         </div>
                       )}
-                      <div className="border-t border-gray-100 pt-2 mt-2 space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-gray-500">Protocol Fee</span><span className="text-gray-400">Standard</span></div>
+                      <div className="border-t border-gray-100 dark:border-gray-800 pt-2 mt-2 space-y-1 text-xs">
+                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Protocol Fee</span><span className="text-gray-400 dark:text-gray-500">Standard</span></div>
                         <div className="flex justify-between font-bold text-emerald-500">
                           <span>Creator Reward</span>
                           <span>{config.creatorReward}% {config.creatorReward === 100 ? '(Max Power)' : ''}</span>
                         </div>
-                        <div className="flex justify-between"><span className="text-gray-500">Interface Fee</span><span className="text-gray-400">{100 - config.creatorReward}%</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Interface Fee</span><span className="text-gray-400 dark:text-gray-500">{100 - config.creatorReward}%</span></div>
                         <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-                          <div className="flex justify-between"><span className="text-gray-500">Admin</span><span className="text-[10px] font-mono">{shortenAddress(config.tokenAdmin)}</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Recipient</span><span className="text-[10px] font-mono">{shortenAddress(config.rewardRecipient)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Admin</span><span className="text-[10px] font-mono text-gray-700 dark:text-gray-300">{shortenAddress(config.tokenAdmin)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Recipient</span><span className="text-[10px] font-mono text-gray-700 dark:text-gray-300">{shortenAddress(config.rewardRecipient)}</span></div>
                         </div>
-                        <div className="flex justify-between"><span className="text-gray-500">Pool</span><span className="text-gray-700">{config.poolPosition}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">MEV</span><span className="text-gray-700 flex items-center gap-1"><Shield className="w-3 h-3 text-[#0052FF]" />{config.mevProtection}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Pool</span><span className="text-gray-700 dark:text-gray-300">{config.poolPosition}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">MEV</span><span className="text-gray-700 dark:text-gray-300 flex items-center gap-1"><Shield className="w-3 h-3 text-[#0052FF]" />{config.mevProtection}</span></div>
                         {parseFloat(config.devBuyEth) > 0 && (
-                          <div className="flex justify-between"><span className="text-gray-500">Dev Buy</span><span className="text-gray-700">{config.devBuyEth} ETH</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Dev Buy</span><span className="text-gray-700 dark:text-gray-300">{config.devBuyEth} ETH</span></div>
                         )}
                       </div>
                     </div>
@@ -1216,8 +1254,8 @@ export default function DeployPage() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Deploying Token...</h2>
-                <p className="text-gray-500 mb-8 text-sm">Broadcasting to Base Mainnet</p>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Deploying Token...</h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">Broadcasting to Base Mainnet</p>
 
                 <div className="w-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 font-mono text-xs max-w-sm">
                   <div className="bg-gray-900 px-3 py-2 flex items-center gap-2 border-b border-gray-800">
@@ -1252,15 +1290,15 @@ export default function DeployPage() {
                   <Check className="w-10 h-10 text-green-600" />
                 </div>
 
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">Deployment Successful!</h2>
-                <p className="text-gray-500 text-sm mb-8">Your token is live on Base.</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Deployment Successful!</h2>
+                <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Your token is live on Base.</p>
 
-                <div className="w-full bg-white rounded-2xl border border-gray-200 p-5 shadow-sm mb-6 text-left space-y-4 relative overflow-hidden max-w-sm">
+                <div className="w-full bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm mb-6 text-left space-y-4 relative overflow-hidden max-w-sm">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
                   <div>
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5">Token Address</p>
-                    <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100 group hover:border-green-200 transition-colors cursor-pointer" onClick={() => copyToClipboard(deployResult.tokenAddress, 'addr')}>
-                      <code className="text-xs text-gray-700 truncate flex-1 font-mono font-medium">{deployResult.tokenAddress}</code>
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 group hover:border-green-200 dark:hover:border-green-800 transition-colors cursor-pointer" onClick={() => copyToClipboard(deployResult.tokenAddress, 'addr')}>
+                      <code className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-mono font-medium">{deployResult.tokenAddress}</code>
                       <div className="text-gray-400 group-hover:text-gray-600">
                         {copiedField === 'addr' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                       </div>
@@ -1282,7 +1320,7 @@ export default function DeployPage() {
                       href={`https://dexscreener.com/base/${deployResult.tokenAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-gray-200 hover:border-gray-300 active:scale-[0.98]"
+                      className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 p-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-gray-200 dark:border-gray-700 hover:border-gray-300 active:scale-[0.98]"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
                       DexScreener
@@ -1303,12 +1341,12 @@ export default function DeployPage() {
                   </CLIButton>
                   <button
                     onClick={() => router.push('/settings')}
-                    className="w-full py-4 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                   >
                     <Settings className="w-4 h-4" />
                     Manage Wallet
                   </button>
-                  <button onClick={shareToken} className="w-full py-2 text-xs font-medium text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1.5">
+                  <button onClick={shareToken} className="w-full py-2 text-xs font-medium text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex items-center justify-center gap-1.5">
                     <Share2 className="w-3 h-3" /> Share Result
                   </button>
                 </div>
@@ -1326,7 +1364,7 @@ export default function DeployPage() {
                   <AlertTriangle className="w-10 h-10 text-red-500" />
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Deployment Failed</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Deployment Failed</h2>
                 <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-mono mb-8 max-w-sm w-full mx-auto text-left overflow-x-auto border border-red-100">
                   {deployLogs.find(l => l.startsWith('✗')) || 'Unknown error occurred'}
                 </div>
@@ -1340,7 +1378,7 @@ export default function DeployPage() {
                   </button>
                   <button
                     onClick={resetForm}
-                    className="w-full py-3.5 text-gray-500 hover:text-gray-700 font-medium"
+                    className="w-full py-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium"
                   >
                     Reset Form
                   </button>
@@ -1352,15 +1390,15 @@ export default function DeployPage() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 bg-white/90 backdrop-blur-md">
+      <footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <p className="font-mono text-[10px] text-gray-400">Clanker SDK v4</p>
+          <p className="font-mono text-[10px] text-gray-400 dark:text-gray-600">Clanker SDK v4</p>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-gray-400">Base</span>
+            <span className="font-mono text-[10px] text-gray-400 dark:text-gray-600">Base</span>
             <motion.div
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+              className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
             />
           </div>
         </div>

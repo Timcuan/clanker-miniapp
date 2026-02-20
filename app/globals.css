@@ -25,7 +25,7 @@
     --input: 220 14% 90%;
     --ring: 221 100% 50%;
     --radius: 0.75rem;
-    
+
     /* UMKM Brand Colors */
     --umkm-primary: 221 100% 50%;
     --umkm-secondary: 221 100% 55%;
@@ -34,25 +34,26 @@
   }
 
   .dark {
-    --background: 220 30% 8%;
-    --foreground: 0 0% 98%;
-    --card: 220 30% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 220 30% 10%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 221 100% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 18%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 220 20% 18%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 195 100% 50%;
-    --accent-foreground: 0 0% 100%;
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    /* Lighter for readability */
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 221 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 224 76% 48%;
   }
 }
 
@@ -60,9 +61,24 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Global text reset for dark mode to ensure visibility */
+  .dark p,
+  .dark span,
+  .dark div {
+    color: inherit;
+  }
+
+  .dark .text-gray-500,
+  .dark .text-gray-600,
+  .dark .text-gray-700 {
+    @apply text-gray-400;
+    /* Auto-lighten dark grays */
   }
 }
 
@@ -119,57 +135,72 @@ html {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
 }
 
 .shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Gradient text - Base Blue Theme */
-.gradient-text {
-  background: linear-gradient(135deg, #0052FF 0%, #00D4FF 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Adaptive Themes */
+:root {
+  --bg-gradient: linear-gradient(180deg, #FFFFFF 0%, #F0F7FF 100%);
+  --terminal-bg: rgba(255, 255, 255, 0.98);
+  --terminal-border: rgba(0, 82, 255, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 82, 255, 0.05);
 }
 
-/* Glass effect */
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.dark {
+  /* Crisp Dark Mode - No Muddy Gradients */
+  --bg-gradient: #020617;
+  --terminal-bg: #0F172A;
+  --terminal-border: rgba(30, 41, 59, 1);
+  --glass-bg: rgba(15, 23, 42, 0.9);
+  --glass-border: rgba(30, 41, 59, 1);
 }
 
-/* Glow effect - Base Blue */
-.glow {
-  box-shadow: 0 0 20px rgba(0, 82, 255, 0.2);
+/* Telegram WebApp specific styles */
+body {
+  background: var(--bg-gradient);
+  color: var(--foreground);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.glow-hover:hover {
-  box-shadow: 0 0 30px rgba(0, 82, 255, 0.35);
-}
-
-/* Terminal styles - Clean White Theme */
+/* Terminal styles - Adaptive Theme */
 .terminal-window {
-  box-shadow: 
-    0 0 0 1px rgba(0, 82, 255, 0.1),
+  box-shadow:
+    0 0 0 1px var(--terminal-border),
     0 20px 50px -10px rgba(0, 82, 255, 0.08),
     0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .terminal-body {
-  background: 
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 255, 0.98) 100%);
+  background: var(--terminal-bg);
+  border: 1px solid var(--terminal-border);
+  border-top: none;
+}
+
+.dark .terminal-window {
+  box-shadow:
+    0 0 0 2px var(--terminal-border),
+    0 10px 30px -10px rgba(0, 0, 0, 0.8);
+}
+
+.dark .terminal-body {
+  background: var(--terminal-bg);
 }
 
 /* CRT effect */
@@ -178,15 +209,31 @@ html {
 }
 
 @keyframes crt-flicker {
-  0% { opacity: 0.97; }
-  50% { opacity: 1; }
-  100% { opacity: 0.98; }
+  0% {
+    opacity: 0.97;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.98;
+  }
 }
 
 /* Typing cursor */
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .cursor-blink {
@@ -195,12 +242,29 @@ html {
 
 /* Glitch effect */
 @keyframes glitch {
-  0% { transform: translate(0); }
-  20% { transform: translate(-2px, 2px); }
-  40% { transform: translate(-2px, -2px); }
-  60% { transform: translate(2px, 2px); }
-  80% { transform: translate(2px, -2px); }
-  100% { transform: translate(0); }
+  0% {
+    transform: translate(0);
+  }
+
+  20% {
+    transform: translate(-2px, 2px);
+  }
+
+  40% {
+    transform: translate(-2px, -2px);
+  }
+
+  60% {
+    transform: translate(2px, 2px);
+  }
+
+  80% {
+    transform: translate(2px, -2px);
+  }
+
+  100% {
+    transform: translate(0);
+  }
 }
 
 .glitch-effect {
@@ -209,15 +273,20 @@ html {
 
 /* Subtle glow - Base Blue */
 .neon-glow {
-  text-shadow: 
+  text-shadow:
     0 0 5px rgba(0, 82, 255, 0.3),
     0 0 10px rgba(0, 82, 255, 0.2);
 }
 
 /* Scan line animation */
 @keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100vh);
+  }
 }
 
 .scan-line {
@@ -230,6 +299,7 @@ html {
     transform: scale(0.8);
     opacity: 1;
   }
+
   100% {
     transform: scale(2);
     opacity: 0;
@@ -247,14 +317,26 @@ html {
 
 /* Matrix rain */
 @keyframes matrix-fall {
-  0% { transform: translateY(-100%); opacity: 1; }
-  100% { transform: translateY(100vh); opacity: 0; }
+  0% {
+    transform: translateY(-100%);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
 }
 
 /* Typewriter */
 @keyframes typewriter {
-  from { width: 0; }
-  to { width: 100%; }
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
 }
 
 .typewriter {
@@ -265,20 +347,26 @@ html {
 
 /* Holographic effect - Base Blue */
 .holographic {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 82, 255, 0.05) 0%,
-    rgba(0, 212, 255, 0.08) 50%,
-    rgba(0, 82, 255, 0.05) 100%
-  );
+  background: linear-gradient(135deg,
+      rgba(0, 82, 255, 0.05) 0%,
+      rgba(0, 212, 255, 0.08) 50%,
+      rgba(0, 82, 255, 0.05) 100%);
   background-size: 200% 200%;
   animation: holographic-shift 3s ease infinite;
 }
 
 @keyframes holographic-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 /* iOS-style blur */

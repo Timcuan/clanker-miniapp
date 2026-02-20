@@ -37,6 +37,39 @@ export const FEE_CONFIGS = {
     clankerFee: 1000, // 10%
     pairedFee: 1000, // 10%
   },
+  StaticFlatCustom: {
+    type: 'static' as const,
+    clankerFee: 1000, // Default 10% (will be overridden)
+    pairedFee: 1000, // Default 10% (will be overridden)
+  },
+  HighFeeDegen: {
+    type: 'dynamic' as const,
+    startingSniperFee: 2000, // 20%
+    endingSniperFee: 1500, // 15%
+    baseFee: 500, // 5%
+    maxFee: 2000, // 20%
+    clankerFee: 100, // 1%
+    referenceTickFilterPeriod: 20,
+    resetPeriod: 60,
+    resetTickFilter: 100,
+    feeControlNumerator: 1000000000,
+    decayFilterBps: 9000,
+    decayDuration: 15,
+  },
+  ExperimentalLow: {
+    type: 'dynamic' as const,
+    startingSniperFee: 50, // 0.5%
+    endingSniperFee: 300, // 3%
+    baseFee: 30, // 0.3%
+    maxFee: 500, // 5%
+    clankerFee: 10, // 0.1%
+    referenceTickFilterPeriod: 60,
+    resetPeriod: 300,
+    resetTickFilter: 500,
+    feeControlNumerator: 200000000,
+    decayFilterBps: 5000,
+    decayDuration: 60,
+  }
 } as const;
 
 export enum MevModuleType {
@@ -56,10 +89,6 @@ export const DEFAULT_CONFIG = {
   // Pool
   pairedToken: 'WETH' as const,
   poolPositionType: 'Standard' as const,
-
-  // Deploy
-  maxTokensPerBatch: 100,
-  deployDelaySeconds: 10,
 
   // Context
   contextInterface: 'Clanker MiniApp',
