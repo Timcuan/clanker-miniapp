@@ -45,6 +45,14 @@ export interface TelegramWebApp {
   disableClosingConfirmation: () => void;
   setHeaderColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
+  CloudStorage: {
+    setItem(key: string, value: string, callback?: (error: any | null, success?: boolean) => void): void;
+    getItem(key: string, callback: (error: any | null, value?: string) => void): void;
+    getItems(keys: string[], callback: (error: any | null, values?: string[]) => void): void;
+    removeItem(key: string, callback?: (error: any | null, success?: boolean) => void): void;
+    removeItems(keys: string[], callback?: (error: any | null, success?: boolean) => void): void;
+    getKeys(callback: (error: any | null, keys?: string[]) => void): void;
+  };
 }
 
 export interface TelegramThemeParams {

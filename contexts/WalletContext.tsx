@@ -146,8 +146,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // Load active wallet
-        const savedActive = localStorage.getItem('clanker_active_wallet');
+        // Load active wallet (try CloudStorage first, fallback to localStorage)
+        let savedActive = null;
+        try {
+          // @ts-ignore
+          const tg = window.Telegram?.WebApp;
+          if (tg && tg.CloudStorage) {
+            savedActive = await new Promise<string | null>((resolve) => {
+              tg.CloudStorage.getItem('clanker_active_wallet', (err: any, value?: string) => {
+                if (!err && value) resolve(value);
+                else resolve(null);
+              });
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to read active wallet from CloudStorage', e);
+        }
+
+        if (!savedActive) {
+          savedActive = localStorage.getItem('clanker_active_wallet');
+        }
+
         if (savedActive) {
           setActiveWalletAddress(savedActive);
         }
@@ -393,8 +412,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setActiveWalletAddress(address);
     if (address) {
       localStorage.setItem('clanker_active_wallet', address);
+      try {
+        // @ts-ignore
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.CloudStorage) {
+          tg.CloudStorage.setItem('clanker_active_wallet', address);
+        }
+      } catch (e) { }
     } else {
       localStorage.removeItem('clanker_active_wallet');
+      try {
+        // @ts-ignore
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.CloudStorage) {
+          tg.CloudStorage.removeItem('clanker_active_wallet');
+        }
+      } catch (e) { }
     }
   }, []);
 

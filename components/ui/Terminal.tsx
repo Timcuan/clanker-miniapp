@@ -52,17 +52,17 @@ export function TerminalLine({
   const getTypeStyles = () => {
     switch (type) {
       case 'success':
-        return 'text-emerald-600';
+        return 'text-emerald-600 dark:text-emerald-400';
       case 'error':
-        return 'text-red-500';
+        return 'text-red-500 dark:text-red-400';
       case 'warning':
-        return 'text-amber-600';
+        return 'text-amber-600 dark:text-amber-400';
       case 'info':
-        return 'text-umkm-primary';
+        return 'text-umkm-primary dark:text-umkm-accent';
       case 'output':
-        return 'text-gray-600 dark:text-gray-400';
+        return 'text-gray-600 dark:text-gray-300';
       default:
-        return 'text-gray-800 dark:text-gray-200';
+        return 'text-gray-800 dark:text-white';
     }
   };
 
@@ -276,11 +276,11 @@ export function ResponsiveAscii({ className = '' }: { className?: string }) {
   return (
     <div className={className}>
       {/* Desktop */}
-      <pre className="hidden sm:block font-mono text-xs leading-none text-umkm-primary whitespace-pre">
+      <pre className="hidden sm:block font-mono text-xs leading-none text-umkm-primary dark:text-blue-400 whitespace-pre">
         {UMKM_ASCII}
       </pre>
       {/* Mobile */}
-      <pre className="sm:hidden font-mono text-xs leading-none text-umkm-primary whitespace-pre text-center">
+      <pre className="sm:hidden font-mono text-xs leading-none text-umkm-primary dark:text-blue-400 whitespace-pre text-center">
         {UMKM_ASCII_COMPACT}
       </pre>
     </div>

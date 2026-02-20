@@ -36,7 +36,7 @@ export default function ClankerLogo({ size = 'md', animated = true, showText = f
         >
           {/* Blue circle background */}
           <circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF" />
-          
+
           {/* White "b" shape - Base logo */}
           <path
             d="M55.4 93.3c20.9 0 37.9-17 37.9-37.9 0-20.9-17-37.9-37.9-37.9-20.2 0-36.7 15.8-37.8 35.7h50.1v4.4H17.6c1.1 19.9 17.6 35.7 37.8 35.7z"
@@ -59,16 +59,16 @@ export default function ClankerLogo({ size = 'md', animated = true, showText = f
           {/* Stylized UMKM text with gradient and modern font */}
           <div className="flex items-center">
             <span className="font-display text-lg sm:text-xl font-extrabold tracking-tight">
-              <span className="text-[#0052FF]">U</span>
-              <span className="text-[#0052FF]">M</span>
-              <span className="text-[#1a73e8]">K</span>
-              <span className="text-[#1a73e8]">M</span>
+              <span className="text-[#0052FF] dark:text-blue-400">U</span>
+              <span className="text-[#0052FF] dark:text-blue-400">M</span>
+              <span className="text-[#1a73e8] dark:text-blue-300">K</span>
+              <span className="text-[#1a73e8] dark:text-blue-300">M</span>
             </span>
             {animated && (
               <motion.div
                 animate={{ opacity: [1, 0.3, 1] }}
                 transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
-                className="w-0.5 h-4 sm:h-5 bg-[#0052FF] ml-0.5 rounded-full"
+                className="w-0.5 h-4 sm:h-5 bg-[#0052FF] dark:bg-blue-400 ml-0.5 rounded-full"
               />
             )}
           </div>

@@ -95,7 +95,12 @@ async function handleStart(userId: number, chatId: number, isAdmin: boolean, has
 
   // 3. The ONLY Launch Button (Consolidated Inline Button)
   const statusLabel = isAdmin ? 'Admin' : (hasAccess ? 'Authorized' : 'Restricted');
-  const welcomeText = `🚀 <b>UMKM Terminal v1.1.2</b>\n\nStatus: <b>${statusLabel}</b>\n\nClick the button below to launch your terminal.`;
+
+  const commandsList = isAdmin
+    ? `\n\n<b>Commands:</b>\n/terminal - Launch Terminal\n/stats - System Stats\n/grant [id] - Authorize User\n/revoke [id] - Ban User`
+    : `\n\n<b>Commands:</b>\n/terminal - Launch Terminal\n/id - Show ID\n/help - Show guide`;
+
+  const welcomeText = `🚀 <b>UMKM Terminal v1.1.2</b>\n\nStatus: <b>${statusLabel}</b>${commandsList}\n\nClick the button below to launch your terminal.`;
 
   const inlineButtons: InlineKeyboardButton[][] = [
     [{ text: "🖥 Launch Terminal", web_app: { url: APP_URL }, style: 'success' }]

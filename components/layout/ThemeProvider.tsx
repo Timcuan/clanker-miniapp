@@ -15,24 +15,62 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setTheme] = useState<Theme>('light');
 
     useEffect(() => {
-        // Check local storage or system preference
-        const savedTheme = localStorage.getItem('umkm_theme') as Theme | null;
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const initTheme = async () => {
+            let savedTheme: Theme | null = null;
 
-        const initialTheme = savedTheme || systemTheme;
-        setTheme(initialTheme);
+            // Try to get from Telegram CloudStorage first if available
+            try {
+                // @ts-ignore
+                const tg = window.Telegram?.WebApp;
+                if (tg && tg.CloudStorage) {
+                    savedTheme = await new Promise<Theme | null>((resolve) => {
+                        tg.CloudStorage.getItem('umkm_theme', (err: any, value?: string) => {
+                            if (!err && (value === 'light' || value === 'dark')) {
+                                resolve(value as Theme);
+                            } else {
+                                resolve(null);
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.warn('Failed to read theme from CloudStorage', e);
+            }
 
-        if (initialTheme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+            // Fallback to localStorage
+            if (!savedTheme) {
+                savedTheme = localStorage.getItem('umkm_theme') as Theme | null;
+            }
+
+            // User requested default to be LIGHT MODE
+            const initialTheme = savedTheme || 'light';
+            setTheme(initialTheme);
+
+            if (initialTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        };
+
+        initTheme();
     }, []);
 
     const toggleTheme = () => {
         const nextTheme = theme === 'light' ? 'dark' : 'light';
         setTheme(nextTheme);
         localStorage.setItem('umkm_theme', nextTheme);
+
+        // Try to save to Telegram CloudStorage
+        try {
+            // @ts-ignore
+            const tg = window.Telegram?.WebApp;
+            if (tg && tg.CloudStorage) {
+                tg.CloudStorage.setItem('umkm_theme', nextTheme);
+            }
+        } catch (e) {
+            console.warn('Failed to save theme to CloudStorage', e);
+        }
 
         if (nextTheme === 'dark') {
             document.documentElement.classList.add('dark');

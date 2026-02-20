@@ -930,14 +930,14 @@ export default function DeployPage() {
         <div className="max-w-lg mx-auto">
           <AnimatePresence mode="wait">
             {step === 'form' && (
-              <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <motion.div key="form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                 <Terminal title="Token Configuration" className="w-full">
                   {/* Balance & Advanced Toggle */}
                   <div className="mb-4 flex items-center justify-between gap-3">
                     {balance ? (
                       <div className="flex-1 p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 flex items-center justify-between">
                         <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">ETH Balance</span>
-                        <span className="font-mono text-xs text-[#0052FF] font-bold">{formatBalance(balance)}</span>
+                        <span className="font-mono text-xs text-[#0052FF] dark:text-blue-400 font-bold">{formatBalance(balance)}</span>
                       </div>
                     ) : <div className="flex-1" />}
 
@@ -1139,7 +1139,7 @@ export default function DeployPage() {
             )}
 
             {step === 'review' && (
-              <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <motion.div key="review" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                 <Terminal title="Review Deployment" className="w-full">
                   <TerminalLine text="Review your configuration:" type="command" />
                   <CLICard className="mt-4 bg-white dark:bg-gray-900/80 border-gray-200 dark:border-gray-800">
@@ -1246,24 +1246,52 @@ export default function DeployPage() {
             {step === 'deploying' && (
               <motion.div
                 key="deploying"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="py-10 flex flex-col items-center w-full"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="py-12 flex flex-col items-center w-full relative"
               >
-                <div className="w-24 h-24 relative mb-8">
-                  <div className="absolute inset-0 border-4 border-gray-100 rounded-full" />
-                  <div className="absolute inset-0 border-4 border-[#0052FF] rounded-full border-t-transparent animate-spin" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Rocket className="w-8 h-8 text-[#0052FF] animate-bounce" />
+                {/* Futuristic Core Loading Animation */}
+                <div className="relative mb-8 flex items-center justify-center">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                    className="absolute w-32 h-32 rounded-full border-t-2 border-r-2 border-[#0052FF] opacity-50 drop-shadow-[0_0_15px_rgba(0,82,255,0.5)]"
+                  />
+                  <motion.div
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
+                    className="absolute w-28 h-28 rounded-full border-b-2 border-l-2 border-cyan-400 dark:border-cyan-300 opacity-60 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                  />
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.8, 0.3] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute w-20 h-20 rounded-full bg-[#0052FF]/30 blur-xl"
+                  />
+                  <div className="w-16 h-16 bg-white dark:bg-gray-900 border border-[#0052FF]/30 rounded-full flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(0,82,255,0.2)]">
+                    <Rocket className="w-8 h-8 text-[#0052FF] dark:text-blue-400" />
                   </div>
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Deploying Token...</h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">Broadcasting to Base Mainnet</p>
+                <motion.h2
+                  animate={{ opacity: [0.7, 1, 0.7] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#0052FF] to-cyan-500 mb-2 font-display text-center"
+                >
+                  Synthesizing Contract...
+                </motion.h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-8 text-xs font-mono tracking-widest uppercase text-center">Broadcasting to Base</p>
 
-                <div className="w-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 font-mono text-xs max-w-sm">
-                  <div className="bg-gray-900 px-3 py-2 flex items-center gap-2 border-b border-gray-800">
+                <div className="w-full bg-black/90 backdrop-blur-xl rounded-xl overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.3)] border border-blue-900/40 font-mono text-xs max-w-sm relative group">
+                  <div className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden">
+                    <motion.div
+                      animate={{ y: ['-100%', '200%'] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                      className="absolute inset-x-0 h-32 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent"
+                    />
+                  </div>
+                  <div className="bg-gray-900/80 px-3 py-2 flex items-center gap-2 border-b border-gray-800 relative z-10">
                     <div className="flex gap-1.5">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
                       <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
@@ -1271,14 +1299,19 @@ export default function DeployPage() {
                     </div>
                     <span className="text-gray-500 ml-2">deploy.log</span>
                   </div>
-                  <div className="p-4 h-64 overflow-y-auto space-y-1 scrollbar-hide text-green-400 font-mono leading-relaxed">
+                  <div className="p-4 h-64 overflow-y-auto space-y-2 scrollbar-hide text-cyan-400 font-mono leading-relaxed relative z-10">
                     {deployLogs.map((log, i) => (
-                      <div key={i} className="animate-fade-in-up break-all border-l-2 border-transparent hover:border-green-800 pl-2">
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        key={i}
+                        className="break-all border-l-2 border-transparent hover:border-cyan-800 pl-2"
+                      >
                         <span className="text-gray-600 mr-2 select-none">[{new Date().toLocaleTimeString('en-US', { hour12: false, minute: '2-digit', second: '2-digit' })}]</span>
                         {log}
-                      </div>
+                      </motion.div>
                     ))}
-                    <div className="animate-pulse text-green-500 font-bold">_</div>
+                    <div className="animate-pulse text-cyan-500 font-bold">_</div>
                   </div>
                 </div>
               </motion.div>
@@ -1287,8 +1320,9 @@ export default function DeployPage() {
             {step === 'success' && deployResult && (
               <motion.div
                 key="success"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 className="py-6 flex flex-col items-center w-full text-center"
               >
                 <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-green-500/10 border-4 border-white ring-4 ring-green-50">
@@ -1361,8 +1395,9 @@ export default function DeployPage() {
             {step === 'error' && (
               <motion.div
                 key="error"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
                 className="py-10 flex flex-col items-center w-full text-center"
               >
                 <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border-4 border-white ring-4 ring-red-50">

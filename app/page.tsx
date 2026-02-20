@@ -76,9 +76,11 @@ export default function HomePage() {
   useEffect(() => {
     const fetchPrice = async () => {
       try {
-        const res = await fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot');
+        const res = await fetch('https://api.dexscreener.com/latest/dex/tokens/0x4200000000000000000000000000000000000006');
         const data = await res.json();
-        setEthPrice(parseFloat(data.data.amount));
+        if (data.pairs && data.pairs.length > 0) {
+          setEthPrice(parseFloat(data.pairs[0].priceUsd));
+        }
       } catch (e) {
         console.error('Failed to fetch ETH price');
       }
@@ -476,44 +478,68 @@ export default function HomePage() {
                           <TerminalLine text="Available commands:" type="info" />
 
                           <div className="grid gap-2 sm:gap-3 mt-3 sm:mt-4">
-                            <CLICard hoverable onClick={handleDeploy} className="group">
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
-                                  <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.3 }}>
+                              <CLICard hoverable onClick={handleDeploy} className="group overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 group-hover:via-blue-500/5 transition-all duration-500" />
+                                <div className="flex items-center gap-3 relative z-10">
+                                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+                                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                  </div>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-[#0052FF] transition-colors">Deploy Token</h3>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Launch on Base Network</p>
+                                  </div>
+                                  <motion.div
+                                    whileHover={{ x: 5 }}
+                                    className="flex-shrink-0"
+                                  >
+                                    <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-[#0052FF] transition-colors" />
+                                  </motion.div>
                                 </div>
-                                <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-[#0052FF] transition-colors">Deploy Token</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Launch on Base Network</p>
-                                </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-[#0052FF] transition-colors flex-shrink-0" />
-                              </div>
-                            </CLICard>
+                              </CLICard>
+                            </motion.div>
 
-                            <CLICard hoverable onClick={() => router.push('/history')} className="group">
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20">
-                                  <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
+                              <CLICard hoverable onClick={() => router.push('/history')} className="group overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/0 to-emerald-500/0 group-hover:via-emerald-500/5 transition-all duration-500" />
+                                <div className="flex items-center gap-3 relative z-10">
+                                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-300">
+                                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                  </div>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-emerald-500 transition-colors">History</h3>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">View past deployments</p>
+                                  </div>
+                                  <motion.div
+                                    whileHover={{ x: 5 }}
+                                    className="flex-shrink-0"
+                                  >
+                                    <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-emerald-500 transition-colors" />
+                                  </motion.div>
                                 </div>
-                                <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-emerald-500 transition-colors">History</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">View past deployments</p>
-                                </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
-                              </div>
-                            </CLICard>
+                              </CLICard>
+                            </motion.div>
 
-                            <CLICard hoverable onClick={() => router.push('/settings')} className="group">
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-300" />
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
+                              <CLICard hoverable onClick={() => router.push('/settings')} className="group overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/0 to-gray-500/0 group-hover:via-gray-500/5 transition-all duration-500" />
+                                <div className="flex items-center gap-3 relative z-10">
+                                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                                    <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-300" />
+                                  </div>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">Settings</h3>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Configuration</p>
+                                  </div>
+                                  <motion.div
+                                    whileHover={{ x: 5 }}
+                                    className="flex-shrink-0"
+                                  >
+                                    <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors" />
+                                  </motion.div>
                                 </div>
-                                <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">Settings</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Configuration</p>
-                                </div>
-                                <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors flex-shrink-0" />
-                              </div>
-                            </CLICard>
+                              </CLICard>
+                            </motion.div>
                           </div>
                         </div>
                       </motion.div>
