@@ -15,9 +15,9 @@ Professional Token Deployer for Base Network using Clanker SDK V4.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14, TypeScript, TailwindCSS, Framer Motion
-- **Database**: SQLite (better-sqlite3) with encrypted sessions
-- **Blockchain**: viem, Clanker SDK V4, Base network
+- **Frontend**: Next.js 15, TypeScript, TailwindCSS, Framer Motion
+- **Database**: Turso (Edge SQLite) with encrypted sessions
+- **Blockchain**: viem 2.x, Clanker SDK V4, Base network
 - **UI**: Custom terminal-style components with Matrix effects
 
 ## Getting Started
