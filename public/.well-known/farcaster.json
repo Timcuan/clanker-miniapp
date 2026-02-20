@@ -1,0 +1,22 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjMxNTIzNCwidHlwZSI6ImF1dGgiLCJrZXkiOiIweDZCMTM2ODczNDhCNGY5QTM2NUQwMjY2ZDM3MTY2MTFkM0FEMjhlMjIifQ",
+    "payload": "eyJkb21haW4iOiJjbGFua2VyLW1pbmlhcHAudmVyY2VsLmFwcCJ9",
+    "signature": "So1XmKrekb8TGSSs3OT6kIFXyWB+Sa1UuPD+skAyffgD1C8I5+8aOkPIihxPm4zsG8UE0xNxpsoxWBU3W/7HQRs="
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "UMKM Terminal",
+    "iconUrl": "https://clanker-miniapp.vercel.app/icon-512.png",
+    "homeUrl": "https://clanker-miniapp.vercel.app/farcaster",
+    "imageUrl": "https://clanker-miniapp.vercel.app/og-image.png",
+    "splashImageUrl": "https://clanker-miniapp.vercel.app/icon-512.png",
+    "splashBackgroundColor": "#0052FF",
+    "webhookUrl": "https://clanker-miniapp.vercel.app/api/webhook",
+    "subtitle": "Deploy tokens on Base",
+    "description": "Create and deploy meme tokens on Base blockchain with Clanker. Easy token creation for everyone.",
+    "primaryCategory": "finance",
+    "tags": ["tokens", "base", "clanker", "meme"],
+    "tagline": "Deploy tokens on Base"
+  }
+}

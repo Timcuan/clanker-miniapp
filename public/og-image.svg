@@ -1,0 +1,25 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0052FF"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e0e7ff"/>
+    </linearGradient>
+  </defs>
+  <!-- Icon -->
+  <g transform="translate(100, 115)">
+    <path d="M200 50 L350 130 L350 290 L200 370 L50 290 L50 130 Z" stroke="url(#g)" stroke-width="12" fill="none"/>
+    <path d="M200 90 L310 150 L310 260 L200 320 L90 260 L90 150 Z" stroke="url(#g)" stroke-width="8" fill="none" opacity="0.5"/>
+    <path d="M120 170 L80 210 L120 250" stroke="url(#g)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M280 170 L320 210 L280 250" stroke="url(#g)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M220 145 L180 275" stroke="url(#g)" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <circle cx="90" cy="140" r="12" fill="url(#g)"/>
+    <circle cx="310" cy="140" r="12" fill="url(#g)"/>
+    <circle cx="310" cy="280" r="12" fill="url(#g)"/>
+    <circle cx="90" cy="280" r="12" fill="url(#g)"/>
+  </g>
+  <!-- Text -->
+  <text x="520" y="280" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold" fill="white">UMKM Terminal</text>
+  <text x="520" y="360" font-family="system-ui, -apple-system, sans-serif" font-size="36" fill="#e0e7ff">Deploy tokens on Base</text>
+  <text x="520" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="28" fill="#a5b4fc">Create meme tokens with Clanker</text>
+</svg>

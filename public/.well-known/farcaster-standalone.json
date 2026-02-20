@@ -1,0 +1,18 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjg5MTYsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg2NTIyNGY0MjQzNzQ2RjZFNjU3OTMxMzIzMzM0MzUzNjM3MzgifQ",
+    "payload": "eyJkb21haW4iOiJjbGFua2VyLW1pbmlhcHAudmVyY2VsLmFwcCJ9",
+    "signature": "MHg..."
+  },
+  "frame": {
+    "version": "1",
+    "name": "UMKM Terminal",
+    "iconUrl": "https://clanker-miniapp.vercel.app/icon-512.png",
+    "homeUrl": "https://clanker-miniapp.vercel.app/farcaster",
+    "imageUrl": "https://clanker-miniapp.vercel.app/og-image.png",
+    "buttonTitle": "Open Terminal",
+    "splashImageUrl": "https://clanker-miniapp.vercel.app/icon-512.png",
+    "splashBackgroundColor": "#0052FF",
+    "webhookUrl": "https://clanker-miniapp.vercel.app/api/webhook"
+  }
+}
