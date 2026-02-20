@@ -67,13 +67,19 @@ export const DEFAULT_CONFIG = {
 
   // Default image
   defaultImage: 'ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+
+  // Defaults for Rewards
+  defaultCreatorReward: 100, // 100% to recipient
+
+  // Vanity
+  vanityPrefix: 'B07',
 } as const;
 
 // Contract addresses
 export const CLANKER_CONTRACTS = {
   v4: {
-    factory: '0x...' as `0x${string}`, // TODO: Add actual address
-    feeLocker: '0x...' as `0x${string}`,
+    factory: '0x0000000000000000000000000000000000000000' as `0x${string}`, // TODO: Update with real factory address
+    feeLocker: '0x0000000000000000000000000000000000000000' as `0x${string}`,
   },
 } as const;
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { 
+import {
   findUserByTelegramId,
   createDeployment,
   updateDeployment,
@@ -34,13 +34,13 @@ function getTelegramUserId(request: NextRequest): number | undefined {
     const parsed = parseInt(headerUserId, 10);
     if (!isNaN(parsed) && parsed > 0) return parsed;
   }
-  
+
   const queryUserId = request.nextUrl.searchParams.get('telegramUserId');
   if (queryUserId) {
     const parsed = parseInt(queryUserId, 10);
     if (!isNaN(parsed) && parsed > 0) return parsed;
   }
-  
+
   return undefined;
 }
 
@@ -48,7 +48,7 @@ function getTelegramUserId(request: NextRequest): number | undefined {
 export async function GET(request: NextRequest) {
   try {
     const telegramUserId = getTelegramUserId(request);
-    
+
     if (!telegramUserId) {
       return NextResponse.json(
         { error: 'Telegram user ID required' },
@@ -56,13 +56,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '10', 10);
-    const deployments = await getDeploymentsByTelegramId(telegramUserId, limit);
+    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '20', 10);
+    const offset = parseInt(request.nextUrl.searchParams.get('offset') || '0', 10);
+    const deployments = await getDeploymentsByTelegramId(telegramUserId, limit, offset);
 
     return NextResponse.json({
       success: true,
       deployments,
       count: deployments.length,
+      limit,
+      offset,
     });
   } catch (error) {
     console.error('[Deployments GET] Error:', error);

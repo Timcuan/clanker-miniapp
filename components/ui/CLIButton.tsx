@@ -30,9 +30,9 @@ export function CLIButton({
 
   const variantStyles = {
     primary: 'bg-umkm-primary text-white border-umkm-primary hover:bg-umkm-secondary hover:shadow-[0_4px_20px_rgba(0,82,255,0.25)]',
-    secondary: 'bg-white border-umkm-primary/30 text-umkm-primary hover:bg-umkm-light hover:border-umkm-primary/50',
-    danger: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300',
-    ghost: 'bg-transparent border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800 hover:bg-gray-50',
+    secondary: 'bg-white dark:bg-gray-900 border-umkm-primary/30 dark:border-umkm-primary/50 text-umkm-primary hover:bg-umkm-light dark:hover:bg-gray-800 hover:border-umkm-primary/50',
+    danger: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 hover:border-red-300',
+    ghost: 'bg-transparent border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900',
   };
 
   const sizeStyles = {
@@ -92,11 +92,11 @@ export function CLICard({ children, title, className = '', onClick, hoverable = 
       onClick={onClick}
       whileHover={hoverable ? { scale: 1.01 } : {}}
       whileTap={hoverable ? { scale: 0.99 } : {}}
-      className={`relative bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md active:shadow-sm transition-all ${hoverable ? 'cursor-pointer' : ''} ${className}`}
+      className={`relative bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md active:shadow-sm transition-all ${hoverable ? 'cursor-pointer' : ''} ${className}`}
     >
       {title && (
-        <div className="px-3 sm:px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-          <span className="font-mono text-[10px] sm:text-xs text-gray-500">{`// ${title}`}</span>
+        <div className="px-3 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+          <span className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{`// ${title}`}</span>
         </div>
       )}
       <div className="p-3 sm:p-4">
@@ -141,7 +141,7 @@ export function CLIInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`w-full bg-white border ${error ? 'border-red-300 bg-red-50/50' : 'border-gray-200'} rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 font-mono text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`w-full bg-white dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50 bg-red-50/50 dark:bg-red-950/20' : 'border-gray-200 dark:border-gray-800'} rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 font-mono text-xs sm:text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           style={{ caretColor: '#0052FF' }}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-[10px] sm:text-xs">
@@ -164,10 +164,10 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, text }: StatusBadgeProps) {
   const statusStyles = {
-    online: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-    offline: 'bg-gray-50 text-gray-500 border-gray-200',
-    pending: 'bg-amber-50 text-amber-600 border-amber-200',
-    error: 'bg-red-50 text-red-600 border-red-200',
+    online: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50',
+    offline: 'bg-gray-50 dark:bg-gray-900/30 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-800',
+    pending: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/50',
+    error: 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50',
   };
 
   const statusDot = {

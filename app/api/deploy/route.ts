@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { z } from 'zod';
 import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { clankerService } from '@/lib/clanker/sdk';
 import { MevModuleType } from '@/lib/clanker/constants';
@@ -19,6 +20,26 @@ function getTelegramUserId(request: NextRequest): number | undefined {
     }
     return undefined;
 }
+
+const DeploySchema = z.object({
+    name: z.string().min(1).max(50),
+    symbol: z.string().min(1).max(10),
+    image: z.string().optional(),
+    description: z.string().optional(),
+    socialMediaUrls: z.array(z.object({
+        platform: z.string(),
+        url: z.string().url()
+    })).optional(),
+    tokenAdmin: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+    rewardRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+    creatorReward: z.number().min(0).max(80),
+    feeType: z.enum(['dynamic', 'static']),
+    poolPosition: z.enum(['Standard', 'Project']),
+    mevProtection: z.nativeEnum(MevModuleType),
+    blockDelay: z.number().min(0).max(20),
+    devBuyEth: z.number().min(0),
+    salt: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+});
 
 export async function POST(request: NextRequest) {
     try {
@@ -39,20 +60,27 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
 
-        // Basic validation
-        if (!body.name || !body.symbol) {
-            return NextResponse.json({ error: 'Name and Symbol are required' }, { status: 400 });
+        // Zod validation
+        const result_val = DeploySchema.safeParse(body);
+        if (!result_val.success) {
+            return NextResponse.json({ error: 'Invalid input', details: result_val.error.errors }, { status: 400 });
         }
 
+        const data = result_val.data;
+
         // Call service to deploy
-        const result = await clankerService.deployToken(session.privateKey, body, {
-            // Map body fields to options
-            feeType: body.feeType,
-            poolPositionType: body.poolPosition,
-            mevModuleType: body.mevProtection as MevModuleType,
-            blockDelay: body.blockDelay,
-            creatorReward: body.creatorReward,
-            devBuyEth: body.devBuyEth,
+        const result = await clankerService.deployToken(session.privateKey, {
+            ...data,
+            image: data.image || '',
+            description: data.description || '',
+        }, {
+            // Map data fields to options
+            feeType: data.feeType,
+            poolPositionType: data.poolPosition,
+            mevModuleType: data.mevProtection,
+            blockDelay: data.blockDelay,
+            creatorReward: data.creatorReward,
+            devBuyEth: data.devBuyEth,
 
             // Context
             platform: 'telegram',

@@ -54,24 +54,49 @@ const webhookHandler = {
 
         if (text === '/start') {
           if (admin) {
-            await sendMessage(chatId, 
-              `🔹 <b>UMKM Terminal - Admin Panel</b>\n\nWelcome back, Admin!\n\nChoose an action:`,
+            await sendMessage(chatId,
+              `🚀 <b>UMKM Terminal v2.0</b>\n\nWelcome back, Admin! Use the buttons below to manage deployments or open the terminal directly.`,
               [
-                [{ text: '🚀 Open Terminal', web_app: { url: APP_URL } }],
-                [{ text: '📊 View Stats', callback_data: 'stats' }, { text: '👤 Manage Users', callback_data: 'users' }],
+                [{ text: '🖥️ OPEN TERMINAL', web_app: { url: APP_URL } }],
+                [
+                  { text: '➕ DEPLOY', web_app: { url: `${APP_URL}/deploy` } },
+                  { text: '📜 HISTORY', web_app: { url: `${APP_URL}/history` } }
+                ],
+                [{ text: '⚙️ SETTINGS', web_app: { url: `${APP_URL}/settings` } }],
+                [{ text: '📊 STATS', callback_data: 'stats' }, { text: '👥 USERS', callback_data: 'users' }]
               ]
             );
           } else {
-            await sendMessage(chatId, 
-              `🔹 <b>UMKM Terminal</b>\n\nWelcome!\n\nThis is a private token deployment platform.\n\nYour ID: <code>${userId}</code>\n\nContact admin for access.`
+            await sendMessage(chatId,
+              `🛡️ <b>UMKM Terminal - Access Restricted</b>\n\nYour user ID <code>${userId}</code> is not authorized for deployment.\n\nContact the administrator to gain access to the private Clanker terminal.`
             );
           }
+        } else if (text === '/deploy') {
+          await sendMessage(chatId, `📦 <b>New Deployment</b>\nClick below to start a new token deployment:`, [
+            [{ text: '🚀 Open Deploy Screen', web_app: { url: `${APP_URL}/deploy` } }]
+          ]);
+        } else if (text === '/history') {
+          await sendMessage(chatId, `📜 <b>Token History</b>\nView your previous deployments and status:`, [
+            [{ text: '📂 View History', web_app: { url: `${APP_URL}/history` } }]
+          ]);
+        } else if (text === '/settings') {
+          await sendMessage(chatId, `⚙️ <b>Application Settings</b>\nManage your wallets and preferences:`, [
+            [{ text: '🛠️ Open Settings', web_app: { url: `${APP_URL}/settings` } }]
+          ]);
         } else if (text === '/id') {
           await sendMessage(chatId, `Your Telegram ID: <code>${userId}</code>`);
         } else if (text === '/help') {
           const helpText = admin
-            ? `<b>Admin Commands:</b>\n\n/start - Open admin panel\n/id - Show your ID\n/help - Show this help`
-            : `<b>Commands:</b>\n\n/start - Open terminal\n/id - Show your ID\n/help - Show this help`;
+            ? `🛠 <b>Admin Control Center</b>\n\n` +
+            `🚀 /start - Open Admin Dashboard\n` +
+            `➕ /deploy - Launch New Token\n` +
+            `📜 /history - View All Deployments\n` +
+            `⚙️ /settings - Manage Wallet & UI\n` +
+            `🆔 /id - Show your Telegram ID`
+            : `📖 <b>User Guide</b>\n\n` +
+            `🚀 /start - Open App Terminal\n` +
+            `🆔 /id - Show your Telegram ID\n` +
+            `❓ /help - View this message`;
           await sendMessage(chatId, helpText);
         }
       }

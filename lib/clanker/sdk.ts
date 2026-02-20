@@ -90,6 +90,7 @@ export class ClankerService {
         blockDelay: options.blockDelay || DEFAULT_CONFIG.blockDelay,
         creatorReward: options.creatorReward,
         devBuyEth: options.devBuyEth,
+        salt: options.salt,
 
         // Context
         platform: options.platform,

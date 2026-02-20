@@ -14,7 +14,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { showBackButton, hideBackButton, hapticFeedback } from '@/lib/telegram/webapp';
 import { Terminal, TerminalLine, TerminalLoader } from '@/components/ui/Terminal';
 import { CLIButton, CLICard, StatusBadge } from '@/components/ui/CLIButton';
-import { GlitchText } from '@/components/ui/GlitchText';
+import { shortenAddress, copyToClipboard } from '@/lib/utils';
 import { MevModuleType, DEFAULT_CONFIG } from '@/lib/clanker/constants';
 
 type DeployStep = 'form' | 'review' | 'deploying' | 'success' | 'error';
@@ -37,7 +37,7 @@ interface TokenConfig {
   // Ownership
   tokenAdmin: string;
   rewardRecipient: string;
-  creatorReward: number; // 0-80%
+  creatorReward: number; // 0-100%
 
   // Pool & Fees
   feeType: 'dynamic' | 'static';
@@ -49,7 +49,37 @@ interface TokenConfig {
 
   // Dev Buy (optional)
   devBuyEth: string;
+
+  // Vanity (optional)
+  vanityEnabled: boolean;
+  vanityPrefix: string;
+  salt: string;
 }
+
+const INITIAL_CONFIG: TokenConfig = {
+  name: '',
+  symbol: '',
+  image: '',
+  description: '',
+  website: '',
+  twitter: '',
+  telegram: '',
+  farcaster: '',
+  github: '',
+  tokenAdmin: '',
+  rewardRecipient: '',
+  creatorReward: 100, // Default: 100% to recipient
+  feeType: 'static',
+  poolPosition: DEFAULT_CONFIG.poolPositionType,
+  mevProtection: DEFAULT_CONFIG.mevModuleType,
+  blockDelay: DEFAULT_CONFIG.blockDelay,
+  devBuyEth: '0',
+  vanityEnabled: false,
+  vanityPrefix: '',
+  salt: '',
+};
+
+const STORAGE_KEY = 'clanker_deploy_form';
 
 interface DeployResult {
   txHash: string;
@@ -213,7 +243,7 @@ function MobileInput({
     }
   };
 
-  const inputClass = `w-full bg-white border ${error ? 'border-red-300' : 'border-gray-200'} rounded-xl px-4 py-3 pr-12 font-mono text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20 transition-all`;
+  const inputClass = `w-full bg-white dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50' : 'border-gray-200 dark:border-gray-800'} rounded-xl px-4 py-3 pr-12 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20 transition-all`;
 
   return (
     <div className="space-y-1">
@@ -243,7 +273,7 @@ function MobileInput({
         <button
           type="button"
           onClick={handlePaste}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
         >
           <Clipboard className="w-4 h-4" />
         </button>
@@ -275,11 +305,11 @@ function OptionSelector({
             onClick={() => { onChange(opt); hapticFeedback('light'); }}
             className={`p-3 rounded-xl border font-mono text-xs text-left transition-all ${value === opt
               ? 'border-[#0052FF] bg-[#0052FF]/10 text-[#0052FF]'
-              : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700'
               }`}
           >
             <div className="font-semibold">{opt}</div>
-            {descriptions?.[opt] && <div className="text-[10px] text-gray-500 mt-1">{descriptions[opt]}</div>}
+            {descriptions?.[opt] && <div className="text-[10px] text-gray-500 dark:text-gray-500 mt-1">{descriptions[opt]}</div>}
           </button>
         ))}
       </div>
@@ -303,7 +333,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => { setIsOpen(!isOpen); hapticFeedback('light'); }}
-        className="w-full p-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+        className="w-full p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
       >
         <span className="font-mono text-xs flex items-center gap-2 text-gray-700">
           <Icon className="w-4 h-4 text-[#0052FF]" />
@@ -338,25 +368,59 @@ export default function DeployPage() {
   const { isTelegram } = useTelegramContext();
 
   const [step, setStep] = useState<DeployStep>('form');
-  const [config, setConfig] = useState<TokenConfig>({
-    name: '',
-    symbol: '',
-    image: '',
-    description: '',
-    website: '',
-    twitter: '',
-    telegram: '',
-    farcaster: '',
-    github: '',
-    tokenAdmin: '',
-    rewardRecipient: '',
-    creatorReward: 0, // Default: 0% to creator, 100% to interface
-    feeType: DEFAULT_CONFIG.feeType,
-    poolPosition: DEFAULT_CONFIG.poolPositionType,
-    mevProtection: DEFAULT_CONFIG.mevModuleType,
-    blockDelay: DEFAULT_CONFIG.blockDelay,
-    devBuyEth: '0',
-  });
+  const [config, setConfig] = useState<TokenConfig>(INITIAL_CONFIG);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Persistence: Load from localStorage on mount
+  useEffect(() => {
+    const savedForm = localStorage.getItem(STORAGE_KEY);
+    if (savedForm) {
+      try {
+        const parsed = JSON.parse(savedForm);
+        setConfig(prev => ({ ...prev, ...parsed }));
+      } catch (e) {
+        console.error('Failed to load form state');
+      }
+    }
+
+    const savedPrefs = localStorage.getItem('clanker_prefs');
+    if (savedPrefs) {
+      try {
+        const parsed = JSON.parse(savedPrefs);
+        if (parsed.advancedMode !== undefined) setIsAdvanced(parsed.advancedMode);
+      } catch (e) { }
+    }
+
+    setIsLoaded(true);
+  }, []);
+
+  // PRO Refinement: Smart Salt Logic (B07 vs Random)
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (config.vanityEnabled) {
+      // Logic: Vanity ON = B07 standard
+      if (!config.salt.startsWith('0xb07')) {
+        const randomPart = Array.from({ length: 61 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        const b07Salt = '0xb07' + randomPart;
+        setConfig(p => ({ ...p, salt: b07Salt }));
+      }
+    } else if (isLoaded) {
+      // Logic: Vanity OFF = Random Address/Salt
+      // Only randomize if it was B07 or empty
+      if (!config.salt || config.salt.startsWith('0xb07')) {
+        const fullRandom = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        setConfig(p => ({ ...p, salt: fullRandom }));
+      }
+    }
+  }, [config.vanityEnabled, isLoaded]);
+
+  // Persistence: Save to localStorage on change
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    }
+  }, [config, isLoaded]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deployLogs, setDeployLogs] = useState<string[]>([]);
   const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
@@ -491,32 +555,22 @@ export default function DeployPage() {
       // We allow it, but we won't block it.
     }
 
-    // Address validation
-    if (config.tokenAdmin && !isValidAddress(config.tokenAdmin)) {
+    // Address validation (strict regex)
+    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!config.tokenAdmin || !ethAddressRegex.test(config.tokenAdmin)) {
       newErrors.tokenAdmin = 'Invalid address';
     }
-    if (config.rewardRecipient && !isValidAddress(config.rewardRecipient)) {
+    if (!config.rewardRecipient || !ethAddressRegex.test(config.rewardRecipient)) {
       newErrors.rewardRecipient = 'Invalid address';
     }
 
-    // URL validation
-    if (config.website && !isValidUrl(config.website)) {
-      newErrors.website = 'Invalid URL';
-    }
-    if (config.twitter && !isValidUrl(config.twitter) && !config.twitter.startsWith('@')) {
-      newErrors.twitter = 'Invalid URL or @handle';
-    }
-    if (config.telegram && !isValidUrl(config.telegram) && !config.telegram.startsWith('@')) {
-      newErrors.telegram = 'Invalid URL or @handle';
-    }
-    if (config.farcaster && !isValidUrl(config.farcaster) && !config.farcaster.startsWith('@')) {
-      newErrors.farcaster = 'Invalid URL or @handle';
-    }
-    if (config.github && !isValidUrl(config.github)) {
-      newErrors.github = 'Invalid URL';
-    }
+    // URL validation (strict check for socials)
+    const validateSocial = (val: string) => val ? (isValidUrl(val) || val.startsWith('@')) : true;
+    if (!validateSocial(config.twitter)) newErrors.twitter = 'Invalid';
+    if (!validateSocial(config.telegram)) newErrors.telegram = 'Invalid';
+    if (!validateSocial(config.farcaster)) newErrors.farcaster = 'Invalid';
 
-    // Creator reward validation
+    // Creator reward validation (100% as requested)
     if (config.creatorReward < 0 || config.creatorReward > 100) {
       newErrors.creatorReward = '0-100%';
     }
@@ -525,6 +579,11 @@ export default function DeployPage() {
     const devBuy = parseFloat(config.devBuyEth);
     if (isNaN(devBuy) || devBuy < 0) {
       newErrors.devBuyEth = 'Invalid amount';
+    }
+
+    // Salt validation
+    if (config.salt && !/^0x[a-fA-F0-9]{64}$/.test(config.salt)) {
+      newErrors.salt = 'Invalid salt format (0x + 64 hex characters)';
     }
 
     setErrors(newErrors);
@@ -653,6 +712,7 @@ export default function DeployPage() {
           creatorReward: Number(config.creatorReward),
           blockDelay: Number(config.blockDelay),
           devBuyEth: Number(config.devBuyEth) || 0,
+          salt: config.salt as `0x${string}` || undefined,
           // Map enum to string literal explicitly
           mevProtection: config.mevProtection === MevModuleType.BlockDelay ? 'BlockDelay' : 'None',
         });
@@ -689,6 +749,9 @@ export default function DeployPage() {
             mevProtection: config.mevProtection,
             blockDelay: config.blockDelay,
             devBuyEth: parseFloat(config.devBuyEth) || 0,
+            platform: 'telegram',
+            telegramUserId: (useTelegramContext() as any).telegramUserId || 0,
+            salt: config.salt as `0x${string}` || undefined,
           }),
         });
 
@@ -743,16 +806,9 @@ export default function DeployPage() {
     } catch { }
 
     setConfig({
-      name: '', symbol: '', image: '',
-      description: '', website: '', twitter: '', telegram: '', farcaster: '', github: '',
-      tokenAdmin: '', rewardRecipient: '',
-      creatorReward: 0,
-      feeType: DEFAULT_CONFIG.feeType,
-      poolPosition: DEFAULT_CONFIG.poolPositionType,
-      mevProtection: DEFAULT_CONFIG.mevModuleType,
-      blockDelay: DEFAULT_CONFIG.blockDelay,
-      devBuyEth: '0',
-      ...savedPrefs // Restore prefs
+      ...INITIAL_CONFIG,
+      tokenAdmin: address || '',
+      rewardRecipient: address || '',
     });
     setErrors({});
     setDeployLogs([]);
@@ -832,8 +888,8 @@ export default function DeployPage() {
           <div className="flex items-center gap-2">
             <ClankerLogo size="sm" animated={true} />
             <div>
-              <h1 className="font-display font-bold text-gray-800 text-sm sm:text-base">Deploy</h1>
-              <p className="font-mono text-[10px] text-gray-500">Clanker SDK v4</p>
+              <h1 className="font-display font-bold text-gray-800 dark:text-white text-sm sm:text-base">Deploy</h1>
+              <p className="font-mono text-[10px] text-gray-500 dark:text-gray-400">Clanker SDK v4</p>
             </div>
           </div>
         </div>
@@ -849,8 +905,8 @@ export default function DeployPage() {
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <Terminal title="Token Configuration" className="w-full">
                   {balance && (
-                    <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-white border border-[#0052FF]/10 flex items-center justify-between">
-                      <span className="font-mono text-xs text-gray-500">Balance:</span>
+                    <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-900 border border-[#0052FF]/10 flex items-center justify-between">
+                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">Balance:</span>
                       <span className="font-mono text-sm text-[#0052FF] font-bold">{parseFloat(balance).toFixed(4)} ETH</span>
                     </div>
                   )}
@@ -896,22 +952,12 @@ export default function DeployPage() {
                         <label className="block font-mono text-xs text-gray-500">
                           <span className="text-[#0052FF] font-medium">const</span> image <span className="text-gray-400">=</span>
                         </label>
-                        <a
-                          href="https://app.pinata.cloud/ipfs/files"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0052FF]/10 text-[#0052FF] text-[10px] font-mono hover:bg-[#0052FF]/20 transition-colors"
-                        >
-                          <Image className="w-3 h-3" />
-                          Pinata IPFS
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
                       </div>
                       <MobileInput
                         label=""
                         value={config.image}
                         onChange={(v) => setConfig(p => ({ ...p, image: v }))}
-                        placeholder="CID, ipfs://, or gateway URL"
+                        placeholder="CID or Image URL"
                         error={errors.image}
                       />
                       {config.image && (
@@ -944,32 +990,6 @@ export default function DeployPage() {
                       </div>
                     </CollapsibleSection>
 
-                    {/* Dev Buy - Promoted */}
-                    <div className="p-3 rounded-xl border border-blue-100 bg-blue-50/50">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Rocket className="w-4 h-4 text-[#0052FF]" />
-                        <span className="font-mono text-xs font-medium text-gray-700">Initial Buy (Dev Snipe)</span>
-                      </div>
-                      <MobileInput
-                        label="ethAmount"
-                        value={config.devBuyEth}
-                        onChange={(v) => setConfig(p => ({ ...p, devBuyEth: v }))}
-                        placeholder="0"
-                        error={errors.devBuyEth}
-                        hint="Amount of ETH to buy immediately in the same block"
-                      />
-                    </div>
-
-                    {/* Advanced Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setIsAdvanced(!isAdvanced)}
-                      className="w-full py-2 flex items-center justify-center gap-2 font-mono text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {isAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      {isAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings'}
-                    </button>
-
                     <AnimatePresence>
                       {isAdvanced && (
                         <motion.div
@@ -978,46 +998,90 @@ export default function DeployPage() {
                           exit={{ height: 0, opacity: 0 }}
                           className="space-y-3 overflow-hidden"
                         >
-                          {/* Ownership & Rewards */}
-                          <CollapsibleSection title="Ownership & Rewards" icon={Coins} defaultOpen>
+                          {/* Dev Buy */}
+                          <div className="p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Rocket className="w-4 h-4 text-[#0052FF]" />
+                              <span className="font-mono text-xs font-medium text-gray-700 dark:text-gray-300">Initial Buy (Dev Snipe)</span>
+                            </div>
+                            <MobileInput
+                              label="ethAmount"
+                              value={config.devBuyEth}
+                              onChange={(v) => setConfig(p => ({ ...p, devBuyEth: v }))}
+                              placeholder="0"
+                              error={errors.devBuyEth}
+                              hint="Amount of ETH to buy immediately"
+                            />
+                          </div>
+
+                          {/* Recipients */}
+                          <CollapsibleSection title="Advanced Recipients" icon={User}>
                             <div className="space-y-4">
-                              <div className="space-y-1">
-                                <label className="font-mono text-xs text-gray-500 block">Token Admin (Owner)</label>
-                                <MobileInput label="" value={config.tokenAdmin} onChange={(v) => setConfig(p => ({ ...p, tokenAdmin: v }))} placeholder={address || '0x...'} error={errors.tokenAdmin} hint="Leave empty to use your wallet" />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="font-mono text-xs text-gray-500 block">Reward Recipient</label>
-                                <MobileInput label="" value={config.rewardRecipient} onChange={(v) => setConfig(p => ({ ...p, rewardRecipient: v }))} placeholder={address || '0x...'} error={errors.rewardRecipient} hint="Leave empty to use your wallet" />
-                              </div>
-                              <div className="space-y-2 pt-2 border-t border-gray-100">
-                                <div className="flex justify-between">
-                                  <label className="font-mono text-xs text-gray-500">Creator Reward %</label>
-                                  <span className="font-mono text-xs font-bold text-[#0052FF]">{config.creatorReward}%</span>
-                                </div>
-                                <input type="range" min="0" max="80" value={config.creatorReward} onChange={(e) => setConfig(p => ({ ...p, creatorReward: parseInt(e.target.value) }))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0052FF]" />
-                              </div>
+                              <MobileInput label="admin" value={config.tokenAdmin} onChange={(v) => setConfig(p => ({ ...p, tokenAdmin: v }))} placeholder={address || '0x...'} error={errors.tokenAdmin} hint="Token Admin" />
+                              <MobileInput label="reward" value={config.rewardRecipient} onChange={(v) => setConfig(p => ({ ...p, rewardRecipient: v }))} placeholder={address || '0x...'} error={errors.rewardRecipient} hint="Reward Recipient" />
                             </div>
                           </CollapsibleSection>
 
-                          {/* Pool & Fees */}
-                          <CollapsibleSection title="Pool & Fees" icon={Zap}>
-                            <OptionSelector label="Fee Type" value={config.feeType} options={['dynamic', 'static']} onChange={(v) => setConfig(p => ({ ...p, feeType: v as any }))} descriptions={{ dynamic: '1-5% based on volume', static: 'Fixed 5%' }} />
-                            <OptionSelector label="Pool Position" value={config.poolPosition} options={['Standard', 'Project']} onChange={(v) => setConfig(p => ({ ...p, poolPosition: v as any }))} descriptions={{ Standard: 'Single (Meme)', Project: 'Multi (Utility)' }} />
+                          {/* Pool Type */}
+                          <CollapsibleSection title="Pool Configuration" icon={Zap}>
+                            <OptionSelector
+                              label="Position Type"
+                              value={config.poolPosition}
+                              options={['Standard', 'Project']}
+                              onChange={(v) => setConfig(p => ({ ...p, poolPosition: v as any }))}
+                              descriptions={{ Standard: 'High Volatility', Project: 'Stable Liquidity' }}
+                            />
                           </CollapsibleSection>
 
-                          {/* MEV Protection */}
-                          <CollapsibleSection title="MEV Protection" icon={Shield}>
-                            <OptionSelector label="Protection Type" value={config.mevProtection} options={[MevModuleType.BlockDelay, MevModuleType.None]} onChange={(v) => setConfig(p => ({ ...p, mevProtection: v as any }))} descriptions={{ [MevModuleType.BlockDelay]: 'Anti-sniper (Rec)', [MevModuleType.None]: 'None' }} />
-                            {config.mevProtection === MevModuleType.BlockDelay && (
-                              <div className="space-y-2 mt-2">
-                                <div className="flex justify-between text-xs font-mono text-gray-500">
-                                  <span>Block Delay</span>
-                                  <span className="text-gray-800">{config.blockDelay} blocks (~{config.blockDelay * 2}s)</span>
-                                </div>
-                                <input type="range" min="1" max="20" value={config.blockDelay} onChange={(e) => setConfig(p => ({ ...p, blockDelay: parseInt(e.target.value) }))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0052FF]" />
+                          {/* Vanity Section */}
+                          <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-900/10 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                <span className="font-mono text-xs font-medium text-gray-700 dark:text-gray-300">Smart Vanity (B07 Std)</span>
                               </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled, salt: !p.vanityEnabled ? p.salt : '' }));
+                                  hapticFeedback('medium');
+                                }}
+                                className={`w-10 h-6 rounded-full transition-colors relative ${config.vanityEnabled ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-800'}`}
+                              >
+                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${config.vanityEnabled ? 'left-5' : 'left-1'}`} />
+                              </button>
+                            </div>
+
+                            {config.vanityEnabled && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="space-y-3 overflow-hidden">
+                                <div className="relative">
+                                  <MobileInput
+                                    label="salt"
+                                    value={config.salt}
+                                    onChange={(v) => setConfig(p => ({ ...p, salt: v }))}
+                                    placeholder="0x..."
+                                    error={errors.salt}
+                                    hint="32-byte hex salt for deterministic address"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const randomSalt = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+                                      setConfig(p => ({ ...p, salt: randomSalt }));
+                                      hapticFeedback('light');
+                                    }}
+                                    className="absolute right-12 top-[30px] p-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                                    title="Generate Random Salt"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <div className="text-[10px] text-gray-500 font-mono p-2 bg-white/50 dark:bg-black/20 rounded border border-purple-100 dark:border-purple-900/20">
+                                  <b>SMART LOGIC:</b> Vanity ON uses Clanker B07 style salt. Vanity OFF uses a cryptographically random salt for unique addresses.
+                                </div>
+                              </motion.div>
                             )}
-                          </CollapsibleSection>
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1109,7 +1173,16 @@ export default function DeployPage() {
                         </div>
                       )}
                       <div className="border-t border-gray-100 pt-2 mt-2 space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-gray-500">Fee</span><span className="text-gray-700">{config.feeType}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Protocol Fee</span><span className="text-gray-400">Standard</span></div>
+                        <div className="flex justify-between font-bold text-emerald-500">
+                          <span>Creator Reward</span>
+                          <span>{config.creatorReward}% {config.creatorReward === 100 ? '(Max Power)' : ''}</span>
+                        </div>
+                        <div className="flex justify-between"><span className="text-gray-500">Interface Fee</span><span className="text-gray-400">{100 - config.creatorReward}%</span></div>
+                        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                          <div className="flex justify-between"><span className="text-gray-500">Admin</span><span className="text-[10px] font-mono">{shortenAddress(config.tokenAdmin)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Recipient</span><span className="text-[10px] font-mono">{shortenAddress(config.rewardRecipient)}</span></div>
+                        </div>
                         <div className="flex justify-between"><span className="text-gray-500">Pool</span><span className="text-gray-700">{config.poolPosition}</span></div>
                         <div className="flex justify-between"><span className="text-gray-500">MEV</span><span className="text-gray-700 flex items-center gap-1"><Shield className="w-3 h-3 text-[#0052FF]" />{config.mevProtection}</span></div>
                         {parseFloat(config.devBuyEth) > 0 && (

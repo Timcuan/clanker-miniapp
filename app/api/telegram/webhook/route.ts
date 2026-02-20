@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   isAdminUser,
-  generateAccessCode,
-  addDynamicAccessCode,
+  grantAccess,
+  revokeAccess,
+  verifyAccess,
+  PRIMARY_ADMIN_ID,
+  sendAdminLog
 } from '@/lib/access-control';
+import { authorizeUser, isUserAuthorized, initDatabase, findUserByTelegramId } from '@/lib/db/turso';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-miniapp.pages.dev';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
 
 interface TelegramUpdate {
   update_id: number;
@@ -31,202 +35,195 @@ interface InlineKeyboardButton {
   callback_data?: string;
 }
 
+// Simple in-memory rate limiting to prevent spam
+const rateLimit = new Map<number, number>();
+const RATE_LIMIT_MS = 1000; // 1 message per second
+
 export async function POST(request: NextRequest) {
   try {
+    // 1. FAST FAIL & DB READY
+    if (!BOT_TOKEN) return NextResponse.json({ ok: true });
+
+    // Resilience: Attempt DB init but don't hard crash if it fails
+    // This allows the bot to at least respond with an "Under Maintenance" message
+    let dbReady = true;
+    try {
+      await initDatabase();
+    } catch (e) {
+      console.error('[Bot] DB Init failed:', e);
+      dbReady = false;
+    }
+
     const update: TelegramUpdate = await request.json();
-    console.log('[Bot] Received update:', update.update_id);
+    if (!update.message && !update.callback_query) return NextResponse.json({ ok: true });
 
-    // ALWAYS log that we got here
-    console.log('[Bot] Webhook executed successfully');
+    const userId = update.message?.from.id || update.callback_query?.from.id || 0;
+    const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id || 0;
 
-    // Handle messages
+    // 2. RATE LIMITING
+    const now = Date.now();
+    const lastSeen = rateLimit.get(userId) || 0;
+    if (now - lastSeen < RATE_LIMIT_MS) {
+      return NextResponse.json({ ok: true });
+    }
+    rateLimit.set(userId, now);
+
+    // 3. LOGIC HANDLERS
     if (update.message?.text) {
-      const chatId = update.message.chat.id;
       const text = update.message.text.trim();
-      const userId = update.message.from.id;
       const isAdmin = isAdminUser(userId);
 
-      // /start command
+      // FALLBACK: If DB is down, only allow Admin or basic ID check
+      if (!dbReady) {
+        if (isAdmin) {
+          await sendMessage(chatId, "⚠️ <b>Warning</b>: Database connection unstable. Basic admin functions still active.");
+        } else {
+          await sendMessage(chatId, "🛠 <b>Maintenance</b>: Systems are currently being updated. Please try again in a few minutes.");
+          return NextResponse.json({ ok: true });
+        }
+      }
+
+      const { hasAccess } = await verifyAccess(userId);
+
+      // --- COMMANDS ---
+
+      // /start
       if (text === '/start') {
         if (isAdmin) {
-          // Send a rich welcome message with image header if supported or just text
-          sendMessageSync(chatId,
-            `🌌 <b>UMKM Terminal Control</b>\n\n` +
-            `Welcome back, Commander.\n` +
-            `System Status: 🟢 Online\n` +
-            `Environment: Base Mainnet\n\n` +
-            `<i>Click below to launch the command center.</i>`,
+          await sendMessage(chatId,
+            `<b>Control Center</b>\n\n` +
+            `Admin: active\n` +
+            `Nodes: optimal\n\n` +
+            `Manage operations via terminal or commands.`,
             [
-              [{ text: '🚀 Launch Terminal', web_app: { url: `${APP_URL}` } }],
-              [{ text: '🔑 Generate Access', callback_data: 'quick_invite' }],
-              [{ text: '📊 Analytics', callback_data: 'stats' }]
+              [{ text: 'Launch Terminal', web_app: { url: `${APP_URL}` } }],
+              [{ text: 'View System ID', callback_data: 'view_id' }]
+            ]
+          );
+        } else if (hasAccess) {
+          await sendMessage(chatId,
+            `<b>Terminal Ready</b>\n\n` +
+            `Auth: verified\n\n` +
+            `Access granted. Open terminal to begin.`,
+            [
+              [{ text: 'Open Terminal', web_app: { url: `${APP_URL}` } }]
             ]
           );
         } else {
-          sendMessageSync(chatId,
-            `🔒 <b>UMKM Terminal</b>\n\n` +
-            `Access Denied.\n\n` +
-            `This is a private deployment tool.\n` +
+          await sendMessage(chatId,
+            `<b>Restricted Area</b>\n\n` +
             `Your ID: <code>${userId}</code>\n\n` +
-            `<i>If you have an invite code, launch the app to enter it.</i>`,
-            [
-              [{ text: '🔓 Enter Access Code', web_app: { url: `${APP_URL}` } }]
-            ]
+            `Authorization required. Contact an administrator to request access with your ID.`,
+            [[{ text: 'Get My ID', callback_data: 'view_id' }]]
           );
+
+          // Fallback: Notify admin of new potential user
+          sendAdminLog(`<b>User Requested Access</b>\nID: <code>${userId}</code>\nUser: @${update.message.from.username || update.message.from.first_name}`);
         }
       }
-      // /id command
+
+      // /id
       else if (text === '/id') {
-        sendMessageSync(chatId, `Your Telegram ID: <code>${userId}</code>`);
+        await sendMessage(chatId, `System ID: <code>${userId}</code>`);
       }
-      // /help command
+
+      // /grant [id] (Admin)
+      else if (text.startsWith('/grant') && isAdmin) {
+        const targetId = parseInt(text.split(' ')[1]);
+        if (isNaN(targetId)) {
+          await sendMessage(chatId, "Format: <code>/grant [user_id]</code>");
+          return NextResponse.json({ ok: true });
+        }
+
+        try {
+          await grantAccess(targetId);
+          await sendMessage(chatId, `✅ <b>Authorized</b>: <code>${targetId}</code>`);
+
+          // Notify target user
+          await sendMessage(targetId, `✨ <b>Auth Update</b>\n\nYou have been authorized for Terminal access. Use /start to begin.`);
+
+          // Admin log
+          sendAdminLog(`<b>Admin Action</b>: Access GRANTED to <code>${targetId}</code> by <code>${userId}</code>`);
+        } catch (err) {
+          await sendMessage(chatId, "❌ <b>Error</b>: Failed to authorize user.");
+        }
+      }
+
+      // /revoke [id] (Admin)
+      else if (text.startsWith('/revoke') && isAdmin) {
+        const targetId = parseInt(text.split(' ')[1]);
+        if (isNaN(targetId)) {
+          await sendMessage(chatId, "Format: <code>/revoke [user_id]</code>");
+          return NextResponse.json({ ok: true });
+        }
+
+        try {
+          await revokeAccess(targetId);
+          await sendMessage(chatId, `🚫 <b>Revoked</b>: <code>${targetId}</code>`);
+          sendAdminLog(`<b>Admin Action</b>: Access REVOKED from <code>${targetId}</code> by <code>${userId}</code>`);
+        } catch (err) {
+          await sendMessage(chatId, "❌ <b>Error</b>: Failed to revoke access.");
+        }
+      }
+
+      // /help
       else if (text === '/help') {
-        const helpText = isAdmin
-          ? `<b>👮‍♂️ Admin Command Center</b>\n\n` +
-          `/invite [label] - Generate 1-time access code\n` +
-          `/start - Open dashboard\n` +
-          `/settings - Bot configuration\n` +
-          `/id - View your ID\n\n` +
-          `<i>Use the menu button to launch the full terminal.</i>`
-          : `<b>🤖 UMKM Terminal Bot</b>\n\n` +
+        const msg = isAdmin
+          ? `<b>Admin Manual</b>\n\n` +
+          `/grant [id] - Grant access\n` +
+          `/revoke [id] - Revoke access\n` +
           `/start - Open terminal\n` +
-          `/id - Show your ID\n` +
-          `/help - Show this help\n\n` +
-          `<i>Ask an admin for an access code to use the app.</i>`;
-
-        sendMessageSync(chatId, helpText);
-      }
-      // /invite command (Admin only)
-      else if (text.startsWith('/invite') && isAdmin) {
-        const parts = text.split(' ');
-        const label = parts.slice(1).join(' ') || 'User Invite';
-
-        // Generate a random code
-        const code = generateAccessCode();
-
-        // Register it in the system (one-time use, 24h expiry)
-        addDynamicAccessCode(code, label, undefined, 'telegram'); // Generic code, not bound to ID yet?
-        // Wait, addDynamicAccessCode binds to ID if provided. If undefined, it works for anyone?
-        // Let's check lib/access-control.ts again.
-        // It binds if userId is provided. If undefined, the binding check `if (boundUserId)` in validateAccessCode might skip?
-        // Let's re-read validateAccessCode in lib/access-control.ts.
-
-        sendMessageSync(chatId,
-          `🎫 <b>Access Code Generated</b>\n\n` +
-          `Code: <code>${code}</code>\n` +
-          `Label: ${label}\n` +
-          `Expiry: 24 hours\n` +
-          `Usage: One-time only\n\n` +
-          `Share this code with the user.`
-        );
+          `/id - Show your ID`
+          : `<b>User Manual</b>\n\n` +
+          `/start - Launch application\n` +
+          `/id - Support identifier\n` +
+          `/help - View this guide`;
+        await sendMessage(chatId, msg);
       }
     }
 
-    // Handle button callbacks
+    // --- CALLBACKS ---
     if (update.callback_query) {
-      const callbackId = update.callback_query.id;
-      const data = update.callback_query.data;
-      const chatId = update.callback_query.message?.chat.id;
-      const userId = update.callback_query.from.id;
-      const isAdmin = isAdminUser(userId);
-
-      if (chatId && data && isAdmin) {
-        answerCallback(callbackId);
-
-        if (data === 'stats') {
-          sendMessageSync(chatId,
-            `📊 <b>Platform Statistics</b>\n\n` +
-            `👥 Total Users: Loading...\n` +
-            `🚀 Deployments: Loading...\n\n` +
-            `Detailed stats coming soon!`
-          );
-        } else if (data === 'users') {
-          sendMessageSync(chatId,
-            `👤 <b>User Management</b>\n\n` +
-            `User list coming soon!\n\n` +
-            `Use /invite to generate new codes.`
-          );
-        } else if (data === 'quick_invite') {
-          // Generate a code quickly from button click
-          const code = generateAccessCode();
-          addDynamicAccessCode(code, 'Quick Invite', undefined, 'telegram');
-          sendMessageSync(chatId,
-            `🎫 <b>Quick Access Code</b>\n\n` +
-            `Code: <code>${code}</code>\n` +
-            `Valid for 24h. One-time use.`
-          );
-        } else if (data === 'reset_sessions') {
-          sendMessageSync(chatId, `⚠️ Functionality to reset sessions not yet implemented.`);
-        } else if (data === 'edit_template') {
-          sendMessageSync(chatId, `Please use the Web App to edit templates.`);
-        }
-      } else {
-        answerCallback(callbackId, 'Action not available');
+      const { id, data, from } = update.callback_query;
+      if (data === 'view_id') {
+        await answerCallback(id);
+        await sendMessage(chatId, `Your System ID: <code>${from.id}</code>`);
       }
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[Bot] Webhook error:', error);
-    return NextResponse.json({ ok: true });
+    console.error('[Bot Webhook Error]:', error);
+    return NextResponse.json({ ok: true }); // Always return 200 to Telegram
   }
 }
 
-// Synchronous send message function with enhanced UI support
-function sendMessageSync(chatId: number, text: string, buttons?: InlineKeyboardButton[][], photoUrl?: string) {
+async function sendMessage(chatId: number, text: string, buttons?: InlineKeyboardButton[][]) {
+  try {
+    const payload: any = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+    };
+    if (buttons) payload.reply_markup = { inline_keyboard: buttons };
 
-  if (!BOT_TOKEN) {
-    console.error('[Bot] No BOT_TOKEN configured');
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch (e) {
     return false;
   }
-
-  const payload: Record<string, unknown> = {
-    chat_id: chatId,
-    parse_mode: 'HTML',
-  };
-
-  if (buttons && buttons.length > 0) {
-    payload.reply_markup = { inline_keyboard: buttons };
-  }
-
-  const endpoint = photoUrl ? 'sendPhoto' : 'sendMessage';
-
-  if (photoUrl) {
-    payload.photo = photoUrl;
-    payload.caption = text;
-  } else {
-    payload.text = text;
-  }
-
-  // Use fetch without await - fire and forget
-  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(error => {
-    console.error('[Bot] Send error:', error);
-  });
-
-  return true;
 }
 
-// Answer callback
-function answerCallback(callbackId: string, text?: string) {
-  if (!BOT_TOKEN) return;
-
-  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      callback_query_id: callbackId,
-      text: text || undefined,
-    }),
-  }).catch(error => {
-    console.error('[Bot] Callback error:', error);
-  });
-}
-
-// Health check
-export async function GET() {
-  return NextResponse.json({ status: 'ok' });
+async function answerCallback(id: string, text?: string) {
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: id, text }),
+    });
+  } catch (e) { }
 }

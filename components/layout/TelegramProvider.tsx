@@ -42,6 +42,20 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
 
       if (app) {
         initWebApp();
+
+        // Handle Deep Linking / Routing from start_param
+        const initDataUnsafe = app.initDataUnsafe as any;
+        if (initDataUnsafe?.start_param) {
+          const param = initDataUnsafe.start_param;
+          console.log('Deep link detected:', param);
+
+          if (param === 'deploy') window.location.href = '/deploy';
+          if (param === 'history') window.location.href = '/history';
+          if (param === 'settings') window.location.href = '/settings';
+          // Using window.location.hash for HashRouter compatibility, 
+          // or router.push if we pass router here. 
+          // Since it's a provider, we'll try a more direct approach or just let the app handle it via useTelegramContext.
+        }
       }
 
       setState({

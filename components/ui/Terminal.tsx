@@ -60,9 +60,9 @@ export function TerminalLine({
       case 'info':
         return 'text-umkm-primary';
       case 'output':
-        return 'text-gray-600';
+        return 'text-gray-600 dark:text-gray-400';
       default:
-        return 'text-gray-800';
+        return 'text-gray-800 dark:text-gray-200';
     }
   };
 
@@ -116,20 +116,20 @@ interface TerminalProps {
 
 export function Terminal({ children, title = 'umkm-terminal', className = '' }: TerminalProps) {
   return (
-    <div className={`terminal-window rounded-2xl overflow-hidden shadow-xl shadow-gray-200/50 ${className}`}>
-      {/* Terminal Header - Clean White */}
-      <div className="terminal-header flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b border-gray-100">
+    <div className={`terminal-window rounded-2xl overflow-hidden shadow-xl shadow-gray-200/50 dark:shadow-black/50 ${className}`}>
+      {/* Terminal Header */}
+      <div className="terminal-header flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
         <div className="flex gap-1.5">
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-400" />
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400" />
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400" />
         </div>
-        <span className="flex-1 text-center text-[10px] sm:text-xs text-gray-400 font-mono truncate">{title}</span>
-        <div className="w-10 sm:w-12" /> {/* Spacer for centering */}
+        <span className="flex-1 text-center text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-mono truncate">{title}</span>
+        <div className="w-10 sm:w-12" />
       </div>
 
-      {/* Terminal Body - Clean White with subtle blue tint */}
-      <div className="terminal-body bg-white p-3 sm:p-5 border border-t-0 border-gray-100 min-h-[180px] sm:min-h-[200px] overflow-auto">
+      {/* Terminal Body */}
+      <div className="terminal-body bg-white dark:bg-gray-950 p-3 sm:p-5 border border-t-0 border-gray-100 dark:border-gray-800 min-h-[180px] sm:min-h-[200px] overflow-auto">
         {children}
       </div>
     </div>
@@ -177,7 +177,7 @@ export function TerminalInput({
         placeholder={placeholder}
         disabled={disabled}
         autoFocus={autoFocus}
-        className="flex-1 bg-transparent border-none outline-none text-gray-800 placeholder-gray-400 caret-umkm-primary"
+        className="flex-1 bg-transparent border-none outline-none text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 caret-umkm-primary"
         style={{ caretColor: '#0052FF' }}
       />
       <motion.span

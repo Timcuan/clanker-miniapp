@@ -27,7 +27,7 @@ export default function HistoryPage() {
   const router = useRouter();
   const { isAuthenticated, formattedAddress } = useWallet();
   const { isTelegram } = useTelegramContext();
-  
+
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export default function HistoryPage() {
   const fetchDeployments = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/deploy', { credentials: 'include' });
+      const response = await fetch('/api/deployments', { credentials: 'include' });
       const data = await response.json();
       setDeployments(data.deployments || []);
     } catch (error) {
@@ -76,16 +76,16 @@ export default function HistoryPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-6 bg-gray-950 relative overflow-hidden">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-white via-blue-50/30 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 relative overflow-hidden">
         <div className="hidden sm:block">
           <MatrixRain />
         </div>
         <Scanlines />
-        
+
         <Terminal title="umkm@base:~/history" className="max-w-md w-full relative z-10">
           <TerminalLine text="Error: Wallet not connected" type="error" />
           <TerminalLine text="Please connect wallet first" type="output" />
-          
+
           <div className="mt-6">
             <CLIButton
               variant="primary"
@@ -101,19 +101,19 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-gray-950 relative overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col bg-gradient-to-b from-white via-blue-50/30 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 relative overflow-hidden">
       {/* Background Effects */}
       <div className="hidden sm:block">
         <MatrixRain />
       </div>
       <Scanlines />
-      
+
       {/* Gradient Orbs */}
       <div className="absolute top-0 right-0 w-48 sm:w-96 h-48 sm:h-96 bg-clanker-primary/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-48 sm:w-96 h-48 sm:h-96 bg-clanker-secondary/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-10 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-800/50">
+      <header className="relative z-10 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 dark:border-gray-800/50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
         <div className="flex items-center gap-3">
           {!isTelegram && (
             <motion.button
@@ -130,12 +130,12 @@ export default function HistoryPage() {
               <Clock className="w-4 h-4 text-white" />
             </div>
             <div>
-              <GlitchText text="HISTORY" className="font-mono font-bold text-white" />
-              <p className="font-mono text-xs text-gray-500">history --list</p>
+              <GlitchText text="HISTORY" className="font-mono font-bold text-gray-800 dark:text-white" />
+              <p className="font-mono text-[10px] text-gray-500">history --list</p>
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -154,13 +154,13 @@ export default function HistoryPage() {
         <div className="max-w-2xl mx-auto">
           <Terminal title="umkm@base:~/history" className="w-full">
             <TerminalLine text={`Deployment history (${deployments.length} records)`} type="command" />
-            
+
             {isLoading ? (
               <TerminalLoader text="Fetching deployments" />
             ) : deployments.length === 0 ? (
               <>
                 <TerminalLine text="No deployments found" type="output" />
-                
+
                 <div className="mt-6 p-4 rounded-lg bg-gray-800/30 border border-gray-700/50">
                   <p className="font-mono text-sm text-gray-400 text-center">
                     Your token deployments will appear here
@@ -184,23 +184,22 @@ export default function HistoryPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="font-mono font-bold text-white">
+                          <span className="font-mono font-bold text-gray-800 dark:text-white">
                             {deployment.name}
                           </span>
                           <span className="font-mono text-xs text-clanker-primary">
                             ${deployment.symbol}
                           </span>
-                          <span className={`px-2 py-0.5 text-xs font-mono rounded ${
-                            deployment.status === 'confirmed' 
-                              ? 'bg-green-500/20 text-green-400' 
+                          <span className={`px-2 py-0.5 text-xs font-mono rounded ${deployment.status === 'confirmed'
+                              ? 'bg-green-500/20 text-green-400'
                               : deployment.status === 'pending'
-                              ? 'bg-yellow-500/20 text-yellow-400'
-                              : 'bg-red-500/20 text-red-400'
-                          }`}>
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}>
                             {deployment.status}
                           </span>
                         </div>
-                        
+
                         <div className="space-y-1">
                           {deployment.tokenAddress && (
                             <div className="flex items-center gap-2">
@@ -218,7 +217,7 @@ export default function HistoryPage() {
                               </button>
                             </div>
                           )}
-                          
+
                           {deployment.txHash && (
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs text-gray-500">TX:</span>
@@ -239,7 +238,7 @@ export default function HistoryPage() {
                               {deployment.errorMessage}
                             </p>
                           )}
-                          
+
                           <p className="font-mono text-xs text-gray-600">
                             {formatDate(deployment.timestamp)}
                           </p>
@@ -255,9 +254,9 @@ export default function HistoryPage() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-800/50">
+      <footer className="relative z-10 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
-          <p className="font-mono text-xs text-gray-600">
+          <p className="font-mono text-[10px] text-gray-400">
             UMKM Terminal v1.0
           </p>
           <div className="flex items-center gap-2">

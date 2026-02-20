@@ -29,6 +29,8 @@ export interface BuildConfigOptions {
   telegramUserId?: number;
   // Dev buy
   devBuyEth?: number;
+  // Vanity salt
+  salt?: `0x${string}`;
 }
 
 // Get platform-specific context
@@ -64,7 +66,7 @@ export function buildTokenConfig(
     poolPositionType = DEFAULT_CONFIG.poolPositionType,
     mevModuleType = DEFAULT_CONFIG.mevModuleType,
     blockDelay = DEFAULT_CONFIG.blockDelay,
-    creatorReward = 0,
+    creatorReward = 100,
     devBuyEth = 0,
   } = options;
 
@@ -142,6 +144,11 @@ export function buildTokenConfig(
     config.devBuy = {
       ethAmount: devBuyEth,
     };
+  }
+
+  // Add custom salt if provided (Vanity)
+  if (options.salt) {
+    config.salt = options.salt;
   }
 
   return config;

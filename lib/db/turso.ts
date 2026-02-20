@@ -10,7 +10,11 @@ export interface DbUser {
   first_name: string | null;
   wallet_address: string | null;
   access_code: string | null;
+  encrypted_session: string | null;
+  platform?: 'telegram' | 'farcaster';
+  last_active_at?: string;
   is_admin: number;
+  is_authorized: number;
   total_deployments: number;
   created_at: string;
   updated_at: string;
@@ -44,6 +48,7 @@ export interface DbDeployment {
 // Database Client
 // ============================================
 let client: Client | null = null;
+let initPromise: Promise<void> | null = null;
 
 function getClient(): Client {
   if (!client) {
@@ -62,6 +67,14 @@ function getClient(): Client {
   return client;
 }
 
+// Ensure DB is initialized
+async function ensureDb() {
+  if (!initPromise) {
+    initPromise = initDatabase();
+  }
+  return initPromise;
+}
+
 // Helper to convert Row to typed object
 function rowToUser(row: Row): DbUser {
   return {
@@ -71,7 +84,9 @@ function rowToUser(row: Row): DbUser {
     first_name: row.first_name as string | null,
     wallet_address: row.wallet_address as string | null,
     access_code: row.access_code as string | null,
+    encrypted_session: row.encrypted_session as string | null,
     is_admin: row.is_admin as number,
+    is_authorized: row.is_authorized as number || 0,
     total_deployments: row.total_deployments as number || 0,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -102,8 +117,25 @@ export default getClient;
 // ============================================
 export async function initDatabase() {
   const db = getClient();
+
+  // Ensure required columns exist
+  const migrationQueries = [
+    "ALTER TABLE users ADD COLUMN encrypted_session TEXT",
+    "ALTER TABLE users ADD COLUMN is_authorized INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN platform TEXT DEFAULT 'telegram'",
+    "ALTER TABLE users ADD COLUMN last_active_at TEXT",
+  ];
+
+  for (const query of migrationQueries) {
+    try {
+      await db.execute(query);
+    } catch (e) {
+      // Column probably exists
+    }
+  }
+
   await db.batch([
-    // Users table - enhanced with wallet and stats
+    // Users table - enhanced with platform and activity tracking
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id INTEGER UNIQUE NOT NULL,
@@ -111,7 +143,11 @@ export async function initDatabase() {
       first_name TEXT,
       wallet_address TEXT,
       access_code TEXT,
+      encrypted_session TEXT,
+      platform TEXT DEFAULT 'telegram',
+      last_active_at TEXT,
       is_admin INTEGER DEFAULT 0,
+      is_authorized INTEGER DEFAULT 0,
       total_deployments INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -155,6 +191,7 @@ export async function initDatabase() {
 // ============================================
 export async function findUserByTelegramId(telegramId: number): Promise<DbUser | null> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
       sql: 'SELECT * FROM users WHERE telegram_id = ?',
@@ -169,6 +206,7 @@ export async function findUserByTelegramId(telegramId: number): Promise<DbUser |
 
 export async function findUserById(userId: number): Promise<DbUser | null> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
       sql: 'SELECT * FROM users WHERE id = ?',
@@ -187,6 +225,7 @@ export async function createUser(
   firstName?: string
 ): Promise<DbUser> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
       sql: 'INSERT INTO users (telegram_id, username, first_name) VALUES (?, ?, ?) RETURNING *',
@@ -204,8 +243,12 @@ export async function updateUser(
   data: {
     username?: string;
     first_name?: string;
-    wallet_address?: string;
+    wallet_address?: string | null;
+    encrypted_session?: string | null;
+    platform?: 'telegram' | 'farcaster';
+    last_active_at?: string;
     is_admin?: number;
+    is_authorized?: number;
   }
 ): Promise<void> {
   try {
@@ -225,9 +268,25 @@ export async function updateUser(
       updates.push('wallet_address = ?');
       args.push(data.wallet_address);
     }
+    if (data.encrypted_session !== undefined) {
+      updates.push('encrypted_session = ?');
+      args.push(data.encrypted_session);
+    }
+    if (data.platform !== undefined) {
+      updates.push('platform = ?');
+      args.push(data.platform);
+    }
+    if (data.last_active_at !== undefined) {
+      updates.push('last_active_at = ?');
+      args.push(data.last_active_at);
+    }
     if (data.is_admin !== undefined) {
       updates.push('is_admin = ?');
       args.push(data.is_admin);
+    }
+    if (data.is_authorized !== undefined) {
+      updates.push('is_authorized = ?');
+      args.push(data.is_authorized);
     }
 
     if (updates.length === 0) return;
@@ -245,8 +304,49 @@ export async function updateUser(
   }
 }
 
+export async function authorizeUser(telegramId: number): Promise<void> {
+  try {
+    const user = await findUserByTelegramId(telegramId);
+    if (!user) {
+      const db = getClient();
+      await db.execute({
+        sql: 'INSERT INTO users (telegram_id, is_authorized) VALUES (?, 1)',
+        args: [telegramId],
+      });
+    } else {
+      await updateUser(telegramId, { is_authorized: 1 });
+    }
+  } catch (error) {
+    console.error('[DB] authorizeUser error:', error);
+    throw error;
+  }
+}
+
+export async function unauthorizeUser(telegramId: number): Promise<void> {
+  try {
+    await updateUser(telegramId, { is_authorized: 0 });
+  } catch (error) {
+    console.error('[DB] unauthorizeUser error:', error);
+    throw error;
+  }
+}
+
+export async function isUserAuthorized(telegramId: number): Promise<boolean> {
+  try {
+    // Admin is always authorized
+    if (telegramId === 1558397457) return true;
+
+    const user = await findUserByTelegramId(telegramId);
+    return user ? user.is_authorized === 1 : false;
+  } catch (error) {
+    console.error('[DB] isUserAuthorized error:', error);
+    return false;
+  }
+}
+
 export async function setUserAccessCode(telegramId: number, code: string): Promise<void> {
   try {
+    await ensureDb();
     const db = getClient();
     await db.execute({
       sql: 'UPDATE users SET access_code = ?, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?',
@@ -260,6 +360,7 @@ export async function setUserAccessCode(telegramId: number, code: string): Promi
 
 export async function getUserAccessCode(telegramId: number): Promise<string | null> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
       sql: 'SELECT access_code FROM users WHERE telegram_id = ?',
@@ -274,6 +375,7 @@ export async function getUserAccessCode(telegramId: number): Promise<string | nu
 
 export async function revokeUserAccess(telegramId: number): Promise<void> {
   try {
+    await ensureDb();
     const db = getClient();
     await db.execute({
       sql: 'UPDATE users SET access_code = NULL, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?',
@@ -287,9 +389,10 @@ export async function revokeUserAccess(telegramId: number): Promise<void> {
 
 export async function getAllUsersWithAccess(): Promise<DbUser[]> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute(
-      'SELECT * FROM users WHERE access_code IS NOT NULL ORDER BY updated_at DESC'
+      'SELECT * FROM users WHERE access_code IS NOT NULL OR is_authorized = 1 ORDER BY updated_at DESC'
     );
     return result.rows.map(rowToUser);
   } catch (error) {
@@ -305,10 +408,11 @@ export async function getUserStats(): Promise<{
   successfulDeployments: number;
 }> {
   try {
+    await ensureDb();
     const db = getClient();
     const [users, access, deployments, successful] = await Promise.all([
       db.execute('SELECT COUNT(*) as count FROM users'),
-      db.execute('SELECT COUNT(*) as count FROM users WHERE access_code IS NOT NULL'),
+      db.execute('SELECT COUNT(*) as count FROM users WHERE access_code IS NOT NULL OR is_authorized = 1'),
       db.execute('SELECT COUNT(*) as count FROM deployments'),
       db.execute("SELECT COUNT(*) as count FROM deployments WHERE status = 'success'"),
     ]);
@@ -334,6 +438,7 @@ export async function createSession(
   walletAddress?: string
 ): Promise<void> {
   try {
+    await ensureDb();
     const db = getClient();
     await db.execute({
       sql: 'INSERT INTO sessions (user_id, token, wallet_address, expires_at) VALUES (?, ?, ?, ?)',
@@ -347,9 +452,10 @@ export async function createSession(
 
 export async function getSession(token: string): Promise<(DbSession & { user: DbUser }) | null> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
-      sql: `SELECT s.*, u.telegram_id, u.username, u.first_name, u.is_admin, u.wallet_address as user_wallet
+      sql: `SELECT s.*, u.telegram_id, u.username, u.first_name, u.is_admin, u.is_authorized, u.encrypted_session, u.wallet_address as user_wallet
             FROM sessions s 
             JOIN users u ON s.user_id = u.id 
             WHERE s.token = ? AND s.expires_at > datetime('now')`,
@@ -372,7 +478,9 @@ export async function getSession(token: string): Promise<(DbSession & { user: Db
         first_name: row.first_name as string | null,
         wallet_address: row.user_wallet as string | null,
         access_code: null,
+        encrypted_session: row.encrypted_session as string | null,
         is_admin: row.is_admin as number,
+        is_authorized: row.is_authorized as number || 0,
         total_deployments: 0,
         created_at: '',
         updated_at: '',
@@ -431,6 +539,7 @@ export async function createDeployment(
   tokenImage?: string
 ): Promise<DbDeployment> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
       sql: `INSERT INTO deployments (user_id, token_name, token_symbol, token_image, status) 
@@ -495,6 +604,8 @@ export async function updateDeployment(
 
     // Update user's total deployments count if status is success
     if (data.status === 'success') {
+      await ensureDb();
+      const db = getClient();
       await db.execute({
         sql: `UPDATE users SET total_deployments = total_deployments + 1 
               WHERE id = (SELECT user_id FROM deployments WHERE id = ?)`,
@@ -509,6 +620,7 @@ export async function updateDeployment(
 
 export async function getDeploymentById(id: number): Promise<DbDeployment | null> {
   try {
+    await ensureDb();
     const db = getClient();
     const result = await db.execute({
       sql: 'SELECT * FROM deployments WHERE id = ?',
@@ -541,21 +653,26 @@ export async function getUserDeployments(
 
 export async function getDeploymentsByTelegramId(
   telegramId: number,
-  limit = 10
+  limit: number = 20,
+  offset: number = 0
 ): Promise<DbDeployment[]> {
   try {
+    const user = await findUserByTelegramId(telegramId);
+    if (!user) return [];
+
     const db = getClient();
     const result = await db.execute({
-      sql: `SELECT d.* FROM deployments d 
-            JOIN users u ON d.user_id = u.id 
-            WHERE u.telegram_id = ? 
-            ORDER BY d.created_at DESC LIMIT ?`,
-      args: [telegramId, limit],
+      sql: `SELECT * FROM deployments 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT ? OFFSET ?`,
+      args: [user.id, limit, offset],
     });
-    return result.rows.map(rowToDeployment);
+
+    return result.rows as unknown as DbDeployment[];
   } catch (error) {
-    console.error('[DB] getDeploymentsByTelegramId error:', error);
-    throw error;
+    console.error(`[DB] getDeploymentsByTelegramId error for ${telegramId}:`, error);
+    return [];
   }
 }
 

@@ -170,16 +170,37 @@ export async function POST(request: NextRequest) {
     const sessionData = createSessionData(normalizedKey, account.address, telegramUserId);
     const encryptedSession = encodeSession(sessionData);
 
+    // PERSISTENCE: Save to database if Telegram user ID is present
+    if (telegramUserId) {
+      const { updateUser, findUserByTelegramId } = await import('@/lib/db/turso');
+      const user = await findUserByTelegramId(telegramUserId);
+      if (user) {
+        await updateUser(telegramUserId, {
+          wallet_address: account.address,
+          encrypted_session: encryptedSession,
+          username: telegramUsername || undefined
+        });
+      } else {
+        // Create user if not exists (unlikely in normal flow but good for robustness)
+        const { createUser } = await import('@/lib/db/turso');
+        await createUser(telegramUserId, telegramUsername, undefined);
+        await updateUser(telegramUserId, {
+          wallet_address: account.address,
+          encrypted_session: encryptedSession
+        });
+      }
+    }
+
     // Get unique cookie name for this Telegram user
     const sessionCookieName = getSessionCookieName(telegramUserId);
 
     // Log wallet connection to admin
     sendAdminLog(
-      `💳 <b>Wallet Connected</b>\n` +
-      `👤 User: ${telegramUsername || 'Unknown'}\n` +
-      `🆔 TG ID: ${telegramUserId || 'N/A'}\n` +
-      `📍 Address: <code>${account.address.slice(0, 10)}...${account.address.slice(-8)}</code>\n` +
-      `⏰ Time: ${new Date().toISOString()}`
+      `<b>Wallet Connected</b>\n` +
+      `User: ${telegramUsername || 'Unknown'}\n` +
+      `TG ID: ${telegramUserId || 'N/A'}\n` +
+      `Address: <code>${account.address.slice(0, 10)}...${account.address.slice(-8)}</code>\n` +
+      `Time: ${new Date().toISOString()}`
     );
 
     // Set session cookie
@@ -234,6 +255,26 @@ export async function PUT(request: NextRequest) {
     // Create secure session immediately
     const sessionData = createSessionData(newPrivateKey, account.address, telegramUserId);
     const encryptedSession = encodeSession(sessionData);
+
+    // PERSISTENCE: Save to database if Telegram user ID is present
+    if (telegramUserId) {
+      const { updateUser, findUserByTelegramId, createUser } = await import('@/lib/db/turso');
+      const user = await findUserByTelegramId(telegramUserId);
+      if (user) {
+        await updateUser(telegramUserId, {
+          wallet_address: account.address,
+          encrypted_session: encryptedSession,
+          username: telegramUsername || undefined
+        });
+      } else {
+        await createUser(telegramUserId, telegramUsername, undefined);
+        await updateUser(telegramUserId, {
+          wallet_address: account.address,
+          encrypted_session: encryptedSession
+        });
+      }
+    }
+
     // Get unique cookie name for this Telegram user
     const sessionCookieName = getSessionCookieName(telegramUserId);
 
@@ -256,10 +297,10 @@ export async function PUT(request: NextRequest) {
 
     // Log generation (without key)
     sendAdminLog(
-      `🆕 <b>New Wallet Generated</b>\n` +
-      `👤 User: ${telegramUsername || 'Unknown'}\n` +
-      `🆔 TG ID: ${telegramUserId || 'N/A'}\n` +
-      `📍 Address: <code>${account.address}</code>`
+      `<b>New Wallet Generated</b>\n` +
+      `User: ${telegramUsername || 'Unknown'}\n` +
+      `TG ID: ${telegramUserId || 'N/A'}\n` +
+      `Address: <code>${account.address}</code>`
     );
 
     return response;
@@ -275,6 +316,17 @@ export async function DELETE(request: NextRequest) {
   try {
     const telegramUserId = getTelegramUserId(request);
     const sessionCookieName = getSessionCookieName(telegramUserId);
+
+    // PERSISTENCE: Clear session from database
+    if (telegramUserId) {
+      const { updateUser, findUserByTelegramId } = await import('@/lib/db/turso');
+      const user = await findUserByTelegramId(telegramUserId);
+      if (user) {
+        await updateUser(telegramUserId, {
+          encrypted_session: null
+        });
+      }
+    }
 
     const response = NextResponse.json({ success: true });
     response.cookies.delete(sessionCookieName);

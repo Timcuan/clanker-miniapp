@@ -20,6 +20,10 @@ interface WalletContextType {
   sessionExpired: boolean;
   telegramUserId: number | null;
 
+  // New: Active wallet management
+  activeWalletAddress: string | null;
+  setActiveWallet: (address: string | null) => void;
+
   // Viem clients
   walletClient: string | null;
   publicClient: ReturnType<typeof createPublicClient>;
@@ -89,6 +93,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null);
+  const [activeWalletAddress, setActiveWalletAddress] = useState<string | null>(null);
   const initRef = useRef(false);
 
   // Initialize viem clients
@@ -131,6 +136,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (data.session) {
             setSessionInfo(data.session);
           }
+        }
+        // Load active wallet
+        const savedActive = localStorage.getItem('clanker_active_wallet');
+        if (savedActive) {
+          setActiveWalletAddress(savedActive);
         }
       } catch (error) {
         console.error('Failed to check wallet connection:', error);
@@ -217,6 +227,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const tgUserId = telegramUserId || getTelegramUserId();
       const tgUsername = getTelegramUsername();
+
 
       const response = await fetch('/api/wallet', {
         method: 'POST',
@@ -369,6 +380,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = address !== null;
   const formattedAddress = address ? formatAddress(address) : null;
 
+  const setActiveWallet = useCallback((address: string | null) => {
+    setActiveWalletAddress(address);
+    if (address) {
+      localStorage.setItem('clanker_active_wallet', address);
+    } else {
+      localStorage.removeItem('clanker_active_wallet');
+    }
+  }, []);
+
   return (
     <WalletContext.Provider
       value={{
@@ -381,6 +401,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         sessionInfo,
         sessionExpired,
         telegramUserId,
+        activeWalletAddress,
+        setActiveWallet,
         walletClient,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         publicClient: publicClient as any,

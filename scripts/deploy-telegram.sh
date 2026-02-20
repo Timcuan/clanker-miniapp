@@ -49,10 +49,11 @@ case $ENVIRONMENT in
             -H "Content-Type: application/json" \
             -d '{
                 "commands": [
-                    {"command": "start", "description": "🚀 Deploy tokens on Base with Clanker"},
-                    {"command": "deploy", "description": "📦 Quick single token deploy"},
-                    {"command": "history", "description": "📜 Your deployment history"},
-                    {"command": "settings", "description": "⚙️ Configure defaults"}
+                    {"command": "start", "description": "🚀 Main Terminal Overview"},
+                    {"command": "deploy", "description": "➕ Start Token Deployment"},
+                    {"command": "history", "description": "📜 Your Token History"},
+                    {"command": "settings", "description": "⚙️ Manage Wallets & Prefs"},
+                    {"command": "help", "description": "❓ Get Help"}
                 ],
                 "scope": {"type": "default"}
             }'
@@ -63,15 +64,17 @@ case $ENVIRONMENT in
         ;;
 esac
 
-# Set Telegram webhook
-echo "📝 Setting Telegram webhook..."
-WEBHOOK_URL="https://clanker-miniapp.vercel.app/api/telegram"
-curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+# Set Telegram WebApp Menu Button
+echo "🔘 Setting MiniApp Menu Button..."
+WEBHOOK_URL="https://clanker-miniapp.pages.dev" # Replace with your actual production domain
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setChatMenuButton" \
     -H "Content-Type: application/json" \
     -d "{
-        \"url\": \"$WEBHOOK_URL\",
-        \"drop_pending_updates\": true,
-        \"secret_token\": \"$(openssl rand -hex 32)\"
+        \"menu_button\": {
+            \"type\": \"web_app\",
+            \"text\": \"🚀 Terminal\",
+            \"web_app\": { \"url\": \"$WEBHOOK_URL\" }
+        }
     }"
 
 echo "✅ Deployment complete!"

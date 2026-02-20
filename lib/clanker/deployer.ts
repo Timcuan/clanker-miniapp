@@ -21,6 +21,7 @@ export interface DeployTokenConfig extends TokenInputData {
   blockDelay: number;
   devBuyEth?: number;
   creatorReward?: number; // 0-100%
+  salt?: `0x${string}`;
 
   // Platform context
   platform?: 'telegram' | 'web' | string;
@@ -92,6 +93,7 @@ export async function deployToken(
       blockDelay: config.blockDelay,
       creatorReward: config.creatorReward,
       devBuyEth: config.devBuyEth,
+      salt: config.salt,
       platform: config.platform,
       telegramUserId: config.telegramUserId,
     });
@@ -174,8 +176,8 @@ export async function simulateDeployment(
       mevModuleType: config.mevProtection === 'BlockDelay' ? MevModuleType.BlockDelay : MevModuleType.None,
       blockDelay: config.blockDelay,
       creatorReward: config.creatorReward,
-      devBuyEth: 0, // Force 0 for simulation to be safe/simple, or match actual? Matching actual is better for gas est?
-      // Actually standard advice is usually 0 for sim unless specifically testing that
+      devBuyEth: 0,
+      salt: config.salt,
       platform: config.platform,
       telegramUserId: config.telegramUserId,
     });
