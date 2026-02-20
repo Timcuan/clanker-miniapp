@@ -91,30 +91,28 @@ export async function POST(request: NextRequest) {
       if (text === '/start') {
         if (isAdmin) {
           await sendMessage(chatId,
-            `<b>Control Center</b>\n\n` +
-            `Admin: active\n` +
-            `Nodes: optimal\n\n` +
-            `Manage operations via terminal or commands.`,
+            `🚀 <b>UMKM Terminal v2.0</b>\n\nWelcome back, Admin! Use the buttons below to manage deployments or open the terminal directly.`,
             [
-              [{ text: 'Launch Terminal', web_app: { url: `${APP_URL}` } }],
-              [{ text: 'View System ID', callback_data: 'view_id' }]
+              [{ text: '🖥️ OPEN TERMINAL', web_app: { url: APP_URL } }],
+              [
+                { text: '➕ DEPLOY', web_app: { url: `${APP_URL}/deploy` } },
+                { text: '📜 HISTORY', web_app: { url: `${APP_URL}/history` } }
+              ],
+              [{ text: '⚙️ SETTINGS', web_app: { url: `${APP_URL}/settings` } }],
+              [{ text: '📊 STATS', callback_data: 'stats' }, { text: '👥 USERS', callback_data: 'users' }]
             ]
           );
         } else if (hasAccess) {
           await sendMessage(chatId,
-            `<b>Terminal Ready</b>\n\n` +
-            `Auth: verified\n\n` +
-            `Access granted. Open terminal to begin.`,
+            `🚀 <b>UMKM Terminal</b>\n\nAuth: <b>Verified</b>\n\nYour deployment terminal is ready. Click below to begin:`,
             [
-              [{ text: 'Open Terminal', web_app: { url: `${APP_URL}` } }]
+              [{ text: '🖥️ OPEN TERMINAL', web_app: { url: APP_URL } }]
             ]
           );
         } else {
           await sendMessage(chatId,
-            `<b>Restricted Area</b>\n\n` +
-            `Your ID: <code>${userId}</code>\n\n` +
-            `Authorization required. Contact an administrator to request access with your ID.`,
-            [[{ text: 'Get My ID', callback_data: 'view_id' }]]
+            `🛡️ <b>Access Restricted</b>\n\nYour user ID <code>${userId}</code> is not authorized.\n\nContact the administrator to request access.`,
+            [[{ text: '🆔 My ID', callback_data: 'view_id' }]]
           );
 
           // Fallback: Notify admin of new potential user
@@ -166,18 +164,42 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // /deploy
+      else if (text === '/deploy') {
+        await sendMessage(chatId, `📦 <b>New Deployment</b>\nClick below to start a new token deployment:`, [
+          [{ text: '🚀 Open Deploy Screen', web_app: { url: `${APP_URL}/deploy` } }]
+        ]);
+      }
+
+      // /history
+      else if (text === '/history') {
+        await sendMessage(chatId, `📜 <b>Token History</b>\nView your previous deployments and status:`, [
+          [{ text: '📂 View History', web_app: { url: `${APP_URL}/history` } }]
+        ]);
+      }
+
+      // /settings
+      else if (text === '/settings') {
+        await sendMessage(chatId, `⚙️ <b>Application Settings</b>\nManage your wallets and preferences:`, [
+          [{ text: '🛠️ Open Settings', web_app: { url: `${APP_URL}/settings` } }]
+        ]);
+      }
+
       // /help
       else if (text === '/help') {
         const msg = isAdmin
-          ? `<b>Admin Manual</b>\n\n` +
-          `/grant [id] - Grant access\n` +
-          `/revoke [id] - Revoke access\n` +
-          `/start - Open terminal\n` +
-          `/id - Show your ID`
-          : `<b>User Manual</b>\n\n` +
-          `/start - Launch application\n` +
-          `/id - Support identifier\n` +
-          `/help - View this guide`;
+          ? `🛠 <b>Admin Control Center</b>\n\n` +
+          `🚀 /start - Open Admin Dashboard\n` +
+          `➕ /deploy - Launch New Token\n` +
+          `📜 /history - View All Deployments\n` +
+          `⚙️ /settings - Manage Wallet & UI\n` +
+          `🆔 /id - Show your Telegram ID\n` +
+          `🔓 /grant [id] - Authorize User\n` +
+          `🔒 /revoke [id] - Remove User`
+          : `📖 <b>User Guide</b>\n\n` +
+          `🚀 /start - Open App Terminal\n` +
+          `🆔 /id - Show your Telegram ID\n` +
+          `❓ /help - View this message`;
         await sendMessage(chatId, msg);
       }
     }
