@@ -28,13 +28,11 @@ const BankrLaunchSchema = z.object({
     taxType: z.enum(['dynamic', 'static']),
     taxPercentage: z.number().min(0).max(90),
     rewardRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/i),
-    salt: z.string().optional(),
     description: z.string().optional(),
     website: z.string().optional(),
     autoSweep: z.boolean().optional().default(true),
-    customGasLimit: z.boolean().optional().default(false),
     vanityEnabled: z.boolean().optional().default(false),
-    vanitySuffix: z.string().optional(),
+    vanitySuffix: z.string().max(8).optional(),
 });
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -173,8 +171,8 @@ export async function POST(request: NextRequest) {
                 taxType: data.taxType,
                 taxPercentage: data.taxPercentage,
                 rewardRecipient: data.rewardRecipient,
-                salt: data.salt,
                 vanitySuffix: (data.vanityEnabled && data.vanitySuffix) ? data.vanitySuffix : undefined,
+
                 burnerWalletAddress: burnerAccount.address,
                 realWalletAddress: userAccount.address,
             }, burnerPk);
@@ -228,8 +226,8 @@ export async function POST(request: NextRequest) {
                 poolPositionType: 'Standard',
                 mevModuleType: MevModuleType.BlockDelay,
                 blockDelay: 2,
-                salt: data.salt ? (data.salt as `0x${string}`) : undefined,
                 platform: 'telegram',
+
             });
 
             if (!fallbackResult.success) {

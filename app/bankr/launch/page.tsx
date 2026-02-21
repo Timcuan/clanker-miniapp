@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, Rocket, Check, AlertTriangle, ChevronDown, ChevronUp,
     Shield, Zap, Copy, ExternalLink, Clipboard, Globe,
-    Share2, Settings, User, Coins, RefreshCw
+    Settings, User, Coins, RefreshCw
 } from 'lucide-react';
 import { useTelegramContext } from '@/components/layout/TelegramProvider';
 import { useWallet } from '@/contexts/WalletContext';
@@ -14,8 +14,6 @@ import { showBackButton, hideBackButton, hapticFeedback } from '@/lib/telegram/w
 import { Terminal, TerminalLine } from '@/components/ui/Terminal';
 import { CLIButton, CLICard, StatusBadge } from '@/components/ui/CLIButton';
 import { shortenAddress } from '@/lib/utils';
-import { createPublicClient, http, formatEther } from 'viem';
-import { base } from 'viem/chains';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type BankrStep = 'form' | 'review' | 'deploying' | 'success' | 'error';
@@ -38,10 +36,10 @@ interface BankrConfig {
     taxPercentage: number;
     rewardRecipient: string;
     vanityEnabled: boolean;
-    vanitySuffix: string;
-    autoSweep: boolean;
-    customGasLimit: boolean;
+    vanitySuffix: string;   // fixed default, not user-editable (simplified)
 }
+
+const DEFAULT_VANITY_SUFFIX = 'bA3';
 
 const DEFAULT_CONFIG: BankrConfig = {
     name: '', symbol: '', image: '', description: '',
@@ -50,13 +48,12 @@ const DEFAULT_CONFIG: BankrConfig = {
     dashboardFeeType: 'x', dashboardFee: '',
     taxType: 'static', taxPercentage: 10,
     rewardRecipient: '',
-    vanityEnabled: false, vanitySuffix: 'bA3',
-    autoSweep: true, customGasLimit: false,
+    vanityEnabled: false, vanitySuffix: DEFAULT_VANITY_SUFFIX,
 };
 
-const STORAGE_KEY = 'bankr_launch_v2';
+const STORAGE_KEY = 'bankr_launch_v3';
 
-// ─── Sub-Components (inline, matching Clanker deploy style) ────────────────────
+// ─── Sub-Components ─────────────────────────────────────────────────────────────
 
 function MobileInput({
     label, value, onChange, placeholder, error, multiline = false, uppercase = false, hint,
@@ -156,19 +153,16 @@ function CollapsibleSection({
     );
 }
 
-function Toggle({ checked, onChange, label, hint }: {
-    checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string;
-}) {
+// Simple animated toggle pill
+function TogglePill({ checked, onChange }: { checked: boolean; onChange: () => void }) {
     return (
-        <button type="button" onClick={() => { onChange(!checked); hapticFeedback('light'); }}
-            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${checked ? 'bg-orange-500/5 border-orange-500/20' : 'bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800'}`}>
-            <div className="text-left">
-                <p className="font-display font-bold text-xs text-gray-800 dark:text-gray-200">{label}</p>
-                {hint && <p className="font-mono text-[10px] text-gray-500">{hint}</p>}
-            </div>
-            <div className={`w-10 h-5 rounded-full relative transition-all flex-shrink-0 ${checked ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${checked ? 'left-5' : 'left-0.5'}`} />
-            </div>
+        <button type="button" onClick={() => { onChange(); hapticFeedback('medium'); }}
+            className={`w-12 h-6 rounded-full transition-all duration-300 relative flex-shrink-0 ${checked ? 'bg-purple-600 shadow-md shadow-purple-500/30' : 'bg-gray-200 dark:bg-gray-700'}`}>
+            <motion.div
+                layout
+                transition={{ type: 'spring', stiffness: 600, damping: 30 }}
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm ${checked ? 'left-6' : 'left-0.5'}`}
+            />
         </button>
     );
 }
@@ -192,7 +186,7 @@ export default function BankrLaunchPage() {
     const [isAdvanced, setIsAdvanced] = useState(false);
     const [ethPrice, setEthPrice] = useState<number | null>(null);
 
-    // Fetch ETH price for balance display
+    // Fetch ETH price
     useEffect(() => {
         fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot')
             .then(r => r.json())
@@ -206,13 +200,14 @@ export default function BankrLaunchPage() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                setConfig(prev => ({ ...prev, ...parsed }));
+                // vanitySuffix is no longer user-editable, always use default
+                setConfig(prev => ({ ...prev, ...parsed, vanitySuffix: DEFAULT_VANITY_SUFFIX }));
             }
         } catch { }
         setIsLoaded(true);
     }, []);
 
-    // Set default addresses from wallet
+    // Set default rewardRecipient from wallet
     useEffect(() => {
         if (address) {
             setConfig(prev => ({
@@ -222,20 +217,27 @@ export default function BankrLaunchPage() {
         }
     }, [address]);
 
-    // Save to localStorage (debounce via effect)
+    // Save to localStorage (only config fields, not transient state)
     useEffect(() => {
         if (isLoaded) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
         }
     }, [config, isLoaded]);
 
-    // Telegram back button
+    // ── Telegram back button ──
+    // Back goes to home (/) not to /bankr agent chat page to prevent accidental fallback chat
     useEffect(() => {
         if (isTelegram) {
-            showBackButton(() => router.push('/bankr'));
+            const destination = step === 'form' ? '/' : undefined;
+            if (destination) {
+                showBackButton(() => router.push(destination));
+            } else {
+                // During deploying/review/success/error: disable back button to prevent interruption
+                hideBackButton();
+            }
             return () => hideBackButton();
         }
-    }, [isTelegram, router]);
+    }, [isTelegram, router, step]);
 
     const getPlaceholder = (type: FeeType) => {
         switch (type) {
@@ -268,9 +270,6 @@ export default function BankrLaunchPage() {
         if (!config.rewardRecipient || !/^0x[a-fA-F0-9]{40}$/i.test(config.rewardRecipient)) {
             errs.rewardRecipient = 'Valid EVM address required';
         }
-        if (config.vanityEnabled && !config.vanitySuffix.trim()) {
-            errs.vanitySuffix = 'Enter a vanity suffix (e.g. bA3)';
-        }
         setErrors(errs);
         return Object.keys(errs).length === 0;
     }, [config]);
@@ -292,7 +291,7 @@ export default function BankrLaunchPage() {
         addLog(`Launcher: ${config.launcherType}:${config.launcher}`);
         addLog(`Fee → ${config.dashboardFeeType}:${config.dashboardFee}`);
         addLog(`Tax: ${config.taxType.toUpperCase()}${config.taxType === 'static' ? ` (${config.taxPercentage}%)` : ''}`);
-        if (config.vanityEnabled) addLog(`Vanity suffix: ...${config.vanitySuffix}`);
+        if (config.vanityEnabled) addLog(`Vanity suffix: ...${DEFAULT_VANITY_SUFFIX}`);
         addLog('Setting up burner wallet proxy...');
         await new Promise(r => setTimeout(r, 600));
         addLog('Funding burner from main wallet...');
@@ -300,7 +299,7 @@ export default function BankrLaunchPage() {
         addLog('Securing x402 payment channel...');
 
         try {
-            // Read autoSweep from global prefs (Settings page is the single source of truth)
+            // Read autoSweep from global prefs — Settings is the single source of truth
             let autoSweep = true;
             try {
                 const prefs = JSON.parse(localStorage.getItem('clanker_prefs') || '{}');
@@ -326,7 +325,7 @@ export default function BankrLaunchPage() {
                     taxPercentage: config.taxPercentage,
                     rewardRecipient: config.rewardRecipient,
                     vanityEnabled: config.vanityEnabled,
-                    vanitySuffix: config.vanityEnabled ? config.vanitySuffix : undefined,
+                    vanitySuffix: config.vanityEnabled ? DEFAULT_VANITY_SUFFIX : undefined,
                     autoSweep,
                 }),
             });
@@ -353,8 +352,7 @@ export default function BankrLaunchPage() {
                     txHash: data.txHash,
                     sweepStatus: autoSweep ? 'swept' : 'pending',
                 };
-                // Keep last 20 entries
-                const updated = [...existing, entry].slice(-20);
+                const updated = [...existing, entry].slice(-20); // keep last 20
                 localStorage.setItem(logKey, JSON.stringify(updated));
             } catch { }
 
@@ -418,7 +416,8 @@ export default function BankrLaunchPage() {
             <header className="relative z-10 px-3 sm:px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
                 <div className="flex items-center gap-2">
                     {!isTelegram && (
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => router.push('/bankr')}
+                        // Non-telegram: show back to home (not bankr chat)
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => router.push('/')}
                             className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
                             <ArrowLeft className="w-5 h-5" />
                         </motion.button>
@@ -441,13 +440,13 @@ export default function BankrLaunchPage() {
                 <div className="max-w-lg mx-auto">
                     <AnimatePresence mode="wait">
 
-                        {/* ─── FORM ─────────────────────────────────────────────────────── */}
+                        {/* ─── FORM ──────────────────────────────────────────────────────── */}
                         {step === 'form' && (
                             <motion.div key="form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                 <Terminal title="Token Launch Configuration" className="w-full">
 
-                                    {/* Balance + Advanced toggle */}
+                                    {/* Balance chip + Advanced toggle */}
                                     <div className="mb-4 flex items-center gap-3">
                                         {balance ? (
                                             <div className="flex-1 p-2.5 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 flex items-center justify-between">
@@ -542,7 +541,7 @@ export default function BankrLaunchPage() {
                                                 <MobileInput label="fee_handle" value={config.dashboardFee}
                                                     onChange={v => setConfig(p => ({ ...p, dashboardFee: v }))}
                                                     placeholder={getPlaceholder(config.dashboardFeeType)} error={errors.dashboardFee}
-                                                    hint="Dashboard fee recipient (shown as interface fee on Clanker)" />
+                                                    hint="Dashboard fee recipient (interface fee on Clanker)" />
 
                                                 <OptionSelector label="Tax Mode" value={config.taxType}
                                                     options={['dynamic', 'static']}
@@ -569,51 +568,42 @@ export default function BankrLaunchPage() {
                                             </div>
                                         </CollapsibleSection>
 
-                                        {/* Advanced: Vanity + Settings */}
+                                        {/* Advanced: Vanity only (simple toggle) */}
                                         <AnimatePresence>
                                             {isAdvanced && (
                                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden">
+                                                    exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
 
-                                                    {/* Vanity */}
-                                                    <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-900/10 space-y-3">
+                                                    {/* Vanity Address Toggle */}
+                                                    <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-900/10">
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
                                                                     <Shield className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                                                                 </div>
                                                                 <div>
-                                                                    <h4 className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">Vanity Address Suffix</h4>
-                                                                    <p className="text-[10px] text-gray-500">Contract ends in <code className="text-purple-600 dark:text-purple-400">...{config.vanitySuffix || 'bA3'}</code></p>
+                                                                    <h4 className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">Vanity Contract Address</h4>
+                                                                    <p className="text-[10px] text-gray-500 mt-0.5">
+                                                                        {config.vanityEnabled
+                                                                            ? <>Contract ends in <code className="text-purple-600 dark:text-purple-400">...{DEFAULT_VANITY_SUFFIX}</code></>
+                                                                            : 'Agent mines a contract ending in "bA3"'}
+                                                                    </p>
                                                                 </div>
                                                             </div>
-                                                            <button type="button"
-                                                                onClick={() => { setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled })); hapticFeedback('medium'); }}
-                                                                className={`w-11 h-6 rounded-full transition-all duration-300 relative flex-shrink-0 ${config.vanityEnabled ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                                                                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${config.vanityEnabled ? 'left-5' : 'left-0.5'}`} />
-                                                            </button>
+                                                            <TogglePill
+                                                                checked={config.vanityEnabled}
+                                                                onChange={() => setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled }))}
+                                                            />
                                                         </div>
-
                                                         {config.vanityEnabled && (
-                                                            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}>
-                                                                <MobileInput label="vanity_suffix" value={config.vanitySuffix}
-                                                                    onChange={v => setConfig(p => ({ ...p, vanitySuffix: v }))}
-                                                                    placeholder="bA3" error={errors.vanitySuffix}
-                                                                    hint="Agent will target a contract address ending in this suffix (e.g. 0x...bA3)" />
+                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                                                className="mt-3 p-2.5 rounded-lg bg-purple-100/50 dark:bg-purple-900/20 border border-purple-200/50 dark:border-purple-800/30">
+                                                                <p className="font-mono text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                                                                    <Zap className="w-3 h-3" />
+                                                                    Agent will mine until contract address ends in <strong>...{DEFAULT_VANITY_SUFFIX}</strong>. This may take up to 2 minutes.
+                                                                </p>
                                                             </motion.div>
                                                         )}
-                                                    </div>
-
-                                                    {/* Agent Settings */}
-                                                    <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 space-y-2">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Zap className="w-4 h-4 text-amber-500" />
-                                                            <span className="font-mono text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Agent Settings</span>
-                                                        </div>
-                                                        <Toggle checked={config.autoSweep} onChange={v => setConfig(p => ({ ...p, autoSweep: v }))}
-                                                            label="Auto-Sweep Residuals" hint="Refund leftover ETH/USDC to your main wallet" />
-                                                        <Toggle checked={config.customGasLimit} onChange={v => setConfig(p => ({ ...p, customGasLimit: v }))}
-                                                            label="Priority Gas" hint="Override default gas limits for faster inclusion" />
                                                     </div>
                                                 </motion.div>
                                             )}
@@ -622,7 +612,7 @@ export default function BankrLaunchPage() {
 
                                     {/* CTA */}
                                     <div className="flex gap-3 mt-6">
-                                        <CLIButton variant="ghost" onClick={() => router.push('/bankr')}>Cancel</CLIButton>
+                                        <CLIButton variant="ghost" onClick={() => router.push('/')}>Cancel</CLIButton>
                                         <CLIButton variant="primary" onClick={handleReview} fullWidth
                                             icon={<Rocket className="w-4 h-4" />}
                                             className="!bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20">
@@ -633,7 +623,7 @@ export default function BankrLaunchPage() {
                             </motion.div>
                         )}
 
-                        {/* ─── REVIEW ───────────────────────────────────────────────────── */}
+                        {/* ─── REVIEW ─────────────────────────────────────────────────────── */}
                         {step === 'review' && (
                             <motion.div key="review" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
@@ -650,11 +640,10 @@ export default function BankrLaunchPage() {
                                                 <div className="flex justify-between"><span className="text-gray-500">Tax</span><span className="text-xs font-mono">{config.taxType.toUpperCase()}{config.taxType === 'static' ? ` ${config.taxPercentage}%` : ''}</span></div>
                                                 <div className="flex justify-between"><span className="text-gray-500">Recipient</span><span className="text-xs font-mono">{shortenAddress(config.rewardRecipient)}</span></div>
                                                 {config.vanityEnabled && (
-                                                    <div className="flex justify-between"><span className="text-gray-500">Vanity Suffix</span><span className="text-purple-500 font-mono text-xs">...{config.vanitySuffix}</span></div>
+                                                    <div className="flex justify-between"><span className="text-gray-500">Vanity</span><span className="text-purple-500 font-mono text-xs">...{DEFAULT_VANITY_SUFFIX}</span></div>
                                                 )}
                                             </div>
-                                            <div className="border-t border-gray-100 dark:border-gray-800 pt-2 space-y-1 text-xs">
-                                                <div className="flex justify-between"><span className="text-gray-500">Auto-Sweep</span><span className={config.autoSweep ? 'text-orange-500' : 'text-gray-400'}>{config.autoSweep ? 'ON' : 'OFF'}</span></div>
+                                            <div className="border-t border-gray-100 dark:border-gray-800 pt-2 text-xs">
                                                 <div className="flex justify-between font-bold text-orange-500">
                                                     <span>Est. Cost</span><span>~0.001 ETH + $0.10 USDC</span>
                                                 </div>
@@ -662,7 +651,7 @@ export default function BankrLaunchPage() {
                                         </div>
                                     </CLICard>
 
-                                    {/* Balance warning */}
+                                    {/* Low balance warning */}
                                     {balance && parseFloat(balance) < 0.001 && (
                                         <div className="mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 flex gap-2 items-start">
                                             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
@@ -684,7 +673,7 @@ export default function BankrLaunchPage() {
                             </motion.div>
                         )}
 
-                        {/* ─── DEPLOYING ────────────────────────────────────────────────── */}
+                        {/* ─── DEPLOYING ──────────────────────────────────────────────────── */}
                         {step === 'deploying' && (
                             <motion.div key="deploying" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }}
@@ -738,7 +727,7 @@ export default function BankrLaunchPage() {
                             </motion.div>
                         )}
 
-                        {/* ─── SUCCESS ──────────────────────────────────────────────────── */}
+                        {/* ─── SUCCESS ────────────────────────────────────────────────────── */}
                         {step === 'success' && deployResult && (
                             <motion.div key="success" initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
@@ -753,7 +742,7 @@ export default function BankrLaunchPage() {
                                 </h2>
                                 <p className="text-gray-500 text-sm mb-8 max-w-xs">
                                     {deployResult.deployedViaFallback
-                                        ? 'Bankr Agent was unavailable. Token deployed via Clanker SDK direct deployment.'
+                                        ? 'Bankr Agent was unavailable. Token deployed via Clanker SDK.'
                                         : 'Your token is live on Base via Bankr AI Agent.'}
                                 </p>
 
@@ -788,15 +777,15 @@ export default function BankrLaunchPage() {
                                         className="py-4 !bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20">
                                         <Rocket className="w-4 h-4 mr-2" /> Launch Another
                                     </CLIButton>
-                                    <button onClick={() => router.push('/bankr')}
+                                    <button onClick={() => router.push('/')}
                                         className="w-full py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                                        <ArrowLeft className="w-4 h-4" /> Bankr Dashboard
+                                        <ArrowLeft className="w-4 h-4" /> Home
                                     </button>
                                 </div>
                             </motion.div>
                         )}
 
-                        {/* ─── ERROR ────────────────────────────────────────────────────── */}
+                        {/* ─── ERROR ──────────────────────────────────────────────────────── */}
                         {step === 'error' && (
                             <motion.div key="error" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3 }} className="py-10 flex flex-col items-center w-full text-center">
