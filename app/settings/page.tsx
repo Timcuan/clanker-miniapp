@@ -127,7 +127,7 @@ export default function SettingsPage() {
         }
       } catch (e) { }
     }
-  }, [autoFill, advancedMode, cloudSync, isPrefsLoaded]);
+  }, [autoFill, advancedMode, cloudSync, autoSweep, customGasLimit, isPrefsLoaded]);
 
   // Load wallets from localStorage on mount
   useEffect(() => {

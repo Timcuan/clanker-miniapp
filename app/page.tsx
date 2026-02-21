@@ -475,50 +475,36 @@ export default function HomePage() {
                         <TerminalLine text="Network: Base Mainnet (Chain ID: 8453)" type="output" />
                         <TerminalLine text="Status: Ready for deployment" type="success" />
 
-                        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 sm:pt-4 mt-3 sm:mt-4">
+                        <div className="border-t border-gray-100/50 dark:border-gray-800/50 pt-3 sm:pt-4 mt-3 sm:mt-4">
                           <TerminalLine text="Available commands:" type="info" />
 
-                          <div className="grid gap-2 sm:gap-3 mt-3 sm:mt-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 sm:mt-4">
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.3 }}>
-                              <CLICard hoverable onClick={handleDeploy} className="group overflow-hidden relative">
+                              <CLICard hoverable onClick={handleDeploy} className="h-full group overflow-hidden relative">
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 group-hover:via-blue-500/5 transition-all duration-500" />
-                                <div className="flex items-center gap-3 relative z-10">
-                                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
-                                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                <div className="flex items-center sm:flex-col sm:items-start gap-3 relative z-10">
+                                  <div className="w-10 h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+                                    <Zap className="w-5 h-5 text-white" />
                                   </div>
                                   <div className="flex-1 text-left min-w-0">
                                     <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-[#0052FF] transition-colors">Deploy Token</h3>
-                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Launch on Base Network</p>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Launch on Base</p>
                                   </div>
-                                  <motion.div
-                                    whileHover={{ x: 5 }}
-                                    className="flex-shrink-0"
-                                  >
-                                    <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-[#0052FF] transition-colors" />
-                                  </motion.div>
                                 </div>
                               </CLICard>
                             </motion.div>
 
-
-
-                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
-                              <CLICard hoverable onClick={() => router.push('/settings')} className="group overflow-hidden relative">
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
+                              <CLICard hoverable onClick={() => router.push('/settings')} className="h-full group overflow-hidden relative">
                                 <div className="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/0 to-gray-500/0 group-hover:via-gray-500/5 transition-all duration-500" />
-                                <div className="flex items-center gap-3 relative z-10">
-                                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
-                                    <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-300" />
+                                <div className="flex items-center sm:flex-col sm:items-start gap-3 relative z-10">
+                                  <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                                    <Settings className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                                   </div>
                                   <div className="flex-1 text-left min-w-0">
                                     <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">Settings</h3>
-                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Configuration</p>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Global Config</p>
                                   </div>
-                                  <motion.div
-                                    whileHover={{ x: 5 }}
-                                    className="flex-shrink-0"
-                                  >
-                                    <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors" />
-                                  </motion.div>
                                 </div>
                               </CLICard>
                             </motion.div>

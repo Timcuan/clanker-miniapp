@@ -289,7 +289,7 @@ export default function BankrLaunchPage() {
                                         </div>
 
                                         {/* Social Links (Tweet, Cast, Telegram, Website) */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-2">
                                             {/* X/Twitter & Farcaster Row */}
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-xs">
