@@ -172,10 +172,10 @@ async function processUpdate(update: TelegramUpdate) {
         `<i>Tap below to open the terminal and deploy tokens on Base.</i>`,
         {
           reply_markup: kb([
-            [{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' }],
+            [{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' as const }],
             ...(isAdmin
-              ? [[{ text: '📊 System Stats', callback_data: 'admin_stats', style: 'secondary' },
-              { text: '📦 Version', callback_data: 'admin_version', style: 'default' }]]
+              ? ([[{ text: '📊 System Stats', callback_data: 'admin_stats', style: 'secondary' as const },
+              { text: '📦 Version', callback_data: 'admin_version', style: 'default' as const }]] as InlineButton[][])
               : []),
           ])
         }
