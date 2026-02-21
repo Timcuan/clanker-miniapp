@@ -187,15 +187,24 @@ export async function POST(request: NextRequest) {
                 throw new Error(result?.error || 'Bankr agent returned a failure response');
             }
 
-            // Extract tx hash from result (Bankr SDK may return it in different places)
-            const txHashFromMsg = result.message
-                ? result.message.match(/0x[a-fA-F0-9]{64}/)
-                : null;
-            txHash = txHashFromMsg?.[0] ?? result.txData?.txHash ?? result.txHash ?? undefined;
+            // Extract tx hash - sdk.ts now extracts from Bankr API response body
+            // Fallback chain: result.txHash (from sdk multi-key extract) → txData → regex on message
+            const txHashFromData = result.txData?.txHash ?? result.txData?.transactionHash
+                ?? result.txData?.tx_hash ?? result.txData?.hash
+                ?? result.txData?.data?.txHash;
+            const txHashFromMsg = result.message?.match(/0x[a-fA-F0-9]{64}/i)?.[0];
+            txHash = result.txHash ?? txHashFromData ?? txHashFromMsg;
             resultMessage = result.message || 'Token successfully launched via Bankr Agent.';
 
             console.log(`[Bankr] Agent succeeded on attempt ${attempt}. Tx: ${txHash}`);
-            sendAdminLog(`✅ <b>Bankr Agent Success!</b>\n\n<b>Token:</b> ${data.name} ($${data.symbol})\n<b>Tx:</b> <a href="https://basescan.org/tx/${txHash}">${txHash?.substring(0, 12)}...</a>`);
+            sendAdminLog(
+                `✅ <b>Bankr Agent Success!</b>\n\n` +
+                `<b>Token:</b> ${data.name} ($${data.symbol})\n` +
+                `<b>Tax:</b> ${data.taxType.toUpperCase()}${data.taxType === 'static' ? ` ${data.taxPercentage}%` : ''}\n` +
+                (data.vanityEnabled ? `<b>Vanity:</b> ...${data.vanitySuffix}\n` : '') +
+                `<b>Tx:</b> <a href="https://basescan.org/tx/${txHash}">${txHash ? txHash.substring(0, 14) + '...' : 'pending'}</a>`
+            );
+
 
             agentSuccess = true;
             lastAgentError = null;

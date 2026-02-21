@@ -1,8 +1,8 @@
 /**
  * Bankr v2 SDK Integration (Custom x402 Implementation)
- * This handles the interaction with Bankr AI trading agent manually 
+ * This handles the interaction with Bankr AI trading agent manually
  * due to upstream NPM package issues.
- * 
+ *
  * Payment Protocol: x402 ($0.10 in USDC per request on Base)
  */
 
@@ -18,7 +18,27 @@ export interface BankrResponse {
     success: boolean;
     message?: string;
     txData?: any;
+    txHash?: string;
     error?: string;
+}
+
+// Try to extract a tx hash from any common key the Bankr API might use
+function extractTxHash(data: any): string | undefined {
+    if (!data || typeof data !== 'object') return undefined;
+    // Try direct keys first
+    const direct = data.txHash ?? data.transactionHash ?? data.tx_hash ?? data.hash;
+    if (direct && typeof direct === 'string' && /^0x[a-fA-F0-9]{64}$/i.test(direct)) return direct;
+    // Try nested shapes Bankr API sometimes wraps in
+    const nested = data.data?.txHash ?? data.data?.transactionHash ?? data.result?.txHash
+        ?? data.transaction?.hash ?? data.tx?.hash;
+    if (nested && typeof nested === 'string' && /^0x[a-fA-F0-9]{64}$/i.test(nested)) return nested;
+    // Last resort: scan message text for a 32-byte hex string
+    const msg: string | undefined = data.message ?? data.msg ?? data.text;
+    if (msg) {
+        const m = msg.match(/0x[a-fA-F0-9]{64}/);
+        if (m) return m[0];
+    }
+    return undefined;
 }
 
 export class BankrService {
@@ -27,36 +47,33 @@ export class BankrService {
     constructor(private apiKey?: string) { }
 
     /**
-   * Sends a prompt to the Bankr AI agent.
-   * Internally handles the x402 payment challenge.
-   */
+     * Sends a prompt to the Bankr AI agent.
+     * Handles x402 payment automatically.
+     */
     async sendPrompt(config: BankrPromptConfig, privateKey: string): Promise<BankrResponse> {
         try {
-            console.log(`[Bankr] Sending prompt: "${config.prompt}" for wallet ${config.walletAddress}`);
+            console.log(`[Bankr] Sending prompt for wallet ${config.walletAddress}`);
 
             const endpoint = `${this.apiUrl}/prompt`;
 
-            const payload = {
-                walletAddress: config.walletAddress,
-                prompt: config.prompt
-            };
-
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
             };
 
             if (this.apiKey) {
                 headers['Authorization'] = `Bearer ${this.apiKey}`;
             }
 
-            // Execute request with automatic x402 payment handling
             const result: X402Response = await fetchWithX402(
                 endpoint,
                 {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        walletAddress: config.walletAddress,
+                        prompt: config.prompt,
+                    }),
                 },
                 privateKey,
                 config.customRpcUrl
@@ -65,39 +82,38 @@ export class BankrService {
             if (!result.success) {
                 return {
                     success: false,
-                    error: result.error || "Bankr request failed during x402 negotiation",
+                    error: result.error ?? 'Bankr request failed during x402 negotiation',
                 };
             }
 
+            // Extract the actual deployment tx hash from the Bankr API response body
+            const responseData = result.data;
+            const deployTxHash = extractTxHash(responseData);
+
+            // Try to get a meaningful message from the response, fall back to generic
+            const responseMessage: string =
+                responseData?.message ??
+                responseData?.msg ??
+                responseData?.text ??
+                'Token launch successfully dispatched via Bankr Agent.';
+
             return {
                 success: true,
-                message: "Bankr query executed successfully.",
-                txData: result.data,
-                // Include the payment txHash if one was made
-                error: result.txHash ? `Payment Tx: ${result.txHash}` : undefined
+                message: responseMessage,
+                txData: responseData,
+                txHash: deployTxHash,          // ← actual deployment tx, not the x402 payment tx
             };
         } catch (error) {
             return {
                 success: false,
-                error: error instanceof Error ? error.message : "Bankr request failed unexpectedly",
+                error: error instanceof Error ? error.message : 'Bankr request failed unexpectedly',
             };
         }
     }
 
     /**
-     * Helper to execute swaps via Bankr recommended routes.
-     */
-    async swap(tokenIn: string, tokenOut: string, amount: string, walletAddress: string, privateKey: string): Promise<BankrResponse> {
-        const prompt = `Swap ${amount} of ${tokenIn} for ${tokenOut}`;
-        return this.sendPrompt({ prompt, walletAddress }, privateKey);
-    }
-
-    async getAccount(privateKey: string) {
-        return fetchWithX402('/account', { method: 'GET' }, privateKey);
-    }
-
-    /**
-     * Executes a token launch using the Bankr Agent mimicking the @bankr/cli 'launch' command.
+     * Executes a token launch using the Bankr Agent,
+     * mimicking the @bankr/cli 'launch' command via natural-language prompt.
      */
     async launchToken(params: {
         name: string;
@@ -106,7 +122,6 @@ export class BankrService {
         tweet?: string;
         cast?: string;
         description?: string;
-        telegram?: string;
         website?: string;
         launcherType: 'x' | 'farcaster' | 'ens' | 'wallet';
         launcher: string;
@@ -115,64 +130,72 @@ export class BankrService {
         taxType: 'dynamic' | 'static';
         taxPercentage: number;
         rewardRecipient: string;
-        salt?: string;
         vanitySuffix?: string;
         burnerWalletAddress: string;
         realWalletAddress: string;
-    }, burnerPrivateKey: string) {
+    }, burnerPrivateKey: string): Promise<BankrResponse> {
 
-        let launchInstruction = `Please launch a new token on Base using your deployment factory with the following parameters:\n- Name: ${params.name}\n- Symbol/Ticker: ${params.symbol}\n`;
+        // ── Build the structured launch prompt ────────────────────────────────
+        let prompt = `Please launch a new ERC-20 token on Base using the Bankr deployment factory. Use all parameters exactly as specified below.\n\n`;
 
-        if (params.image) {
-            launchInstruction += `- Image URL: ${params.image}\n`;
-        }
-        if (params.tweet) {
-            launchInstruction += `- Announcement Tweet: ${params.tweet}\n`;
-        }
-        if (params.cast) {
-            launchInstruction += `- Farcaster Cast: ${params.cast}\n`;
-        }
-        if (params.description) {
-            launchInstruction += `- Description: ${params.description}\n`;
-        }
-        if (params.telegram) {
-            launchInstruction += `- Telegram: ${params.telegram}\n`;
-        }
-        if (params.website) {
-            launchInstruction += `- Website: ${params.website}\n`;
-        }
+        prompt += `## Token Details\n`;
+        prompt += `- Name: ${params.name}\n`;
+        prompt += `- Symbol/Ticker: ${params.symbol}\n`;
 
-        launchInstruction += `- Pool Tax Configuration: ${params.taxType.toUpperCase()} fee strategy`;
+        if (params.description) prompt += `- Description: ${params.description}\n`;
+        if (params.image) prompt += `- Image URL: ${params.image}\n`;
+        if (params.website) prompt += `- Website: ${params.website}\n`;
+        if (params.tweet) prompt += `- Announcement Tweet: ${params.tweet}\n`;
+        if (params.cast) prompt += `- Farcaster Cast: ${params.cast}\n`;
+
+        prompt += `\n## Pool & Tax Configuration\n`;
         if (params.taxType === 'static') {
-            launchInstruction += ` strictly locked at ${params.taxPercentage}%`;
+            prompt += `- Fee Strategy: STATIC — lock the pool tax at exactly ${params.taxPercentage}% permanently. Do not use a dynamic or variable fee strategy.\n`;
+        } else {
+            prompt += `- Fee Strategy: DYNAMIC — the agent selects an appropriate buy/sell tax between 1% and 10% based on market conditions. Do not lock to a fixed percentage.\n`;
         }
-        launchInstruction += `\n`;
 
-        // Vanity suffix (Bankr v2: uses ADDRESS SUFFIX, not prefix)
+        // ── Vanity address ─────────────────────────────────────────────────────
         if (params.vanitySuffix) {
-            launchInstruction += `- Vanity Contract Address (CRITICAL): The resulting deployed contract address MUST END WITH the suffix: "${params.vanitySuffix}". `;
-            launchInstruction += `You must use CREATE2 salt grinding to find a deployment salt that produces a contract address ending in the suffix "${params.vanitySuffix}". `;
-            launchInstruction += `This is a vanity suffix requirement, not a prefix. The address should look like: 0x...${params.vanitySuffix}\n`;
-        } else if (params.salt) {
-            launchInstruction += `- Deployment Salt (CRITICAL): ${params.salt}\n`;
-            launchInstruction += `You MUST explicitly use this exact hexadecimal salt value for the underlying CREATE2 deployment call.\n`;
+            prompt += `\n## Vanity Contract Address (CRITICAL)\n`;
+            prompt += `The deployed token contract address MUST END with the hex suffix: "${params.vanitySuffix}".\n`;
+            prompt += `You MUST use CREATE2 salt grinding to find a deployment salt that produces an address ending in "${params.vanitySuffix}".\n`;
+            prompt += `Example target format: 0x...${params.vanitySuffix}\n`;
+            prompt += `Do NOT deploy until a valid salt for this suffix is found.\n`;
         }
 
-        // --- EXPLICIT DASHBOARD PROFILING ---
-        launchInstruction += `\nCrucial Dashboard Instructions:\n`;
-        launchInstruction += `1. Set THE LAUNCHER on the bankr dashboard strictly to this ${params.launcherType} profile: ${params.launcher}\n`;
-        launchInstruction += `2. Set THE FEE TO on the dashboard strictly to this ${params.dashboardFeeType} profile: ${params.dashboardFee}\n\n`;
+        // ── Dashboard identity (launcher + fee recipient) ──────────────────────
+        prompt += `\n## Dashboard Identity (Required)\n`;
+        prompt += `1. LAUNCHER: Set the Bankr dashboard launcher to the following ${params.launcherType} profile: "${params.launcher}"\n`;
+        prompt += `2. FEE TO: Set the dashboard fee recipient to the following ${params.dashboardFeeType} profile: "${params.dashboardFee}"\n`;
+        prompt += `Both must appear on the Bankr analytics dashboard exactly as specified.\n`;
 
-        // --- BURNER WALLET PROXY OBFUSCATION ---
-        launchInstruction += `Crucial Ownership Instruction: I am an automated proxy. Do NOT assign on-chain ownership to my proxy address. `;
-        launchInstruction += `The ACTUAL owner (tokenAdmin) and on-chain Reward Recipient (target for all actual tax fees) of this token is ${params.rewardRecipient}. `;
-        launchInstruction += `Ensure the deployment explicitly sets ${params.rewardRecipient} as the exact owner and reward recipient in the smart contract. `;
-        launchInstruction += `Please execute the deployment with these exact parameters and return the transaction details.`;
+        // ── Ownership & burner obfuscation ────────────────────────────────────
+        prompt += `\n## Ownership Assignment (CRITICAL)\n`;
+        prompt += `I am an automated proxy wallet (${params.burnerWalletAddress}). DO NOT assign any on-chain ownership to this proxy address.\n`;
+        prompt += `The REAL owner of this token is: ${params.rewardRecipient}\n`;
+        prompt += `You MUST set ALL of the following to ${params.rewardRecipient}:\n`;
+        prompt += `  - tokenAdmin\n`;
+        prompt += `  - rewardRecipient (receives all swap fee income)\n`;
+        prompt += `  - Any other ownership or admin role in the smart contract\n`;
+        prompt += `After deployment, confirm these assignments are correct in the transaction receipt.\n`;
+
+        prompt += `\nExecute the deployment now and return the transaction hash and token contract address.`;
 
         return this.sendPrompt({
-            prompt: launchInstruction,
+            prompt,
             walletAddress: params.burnerWalletAddress,
         }, burnerPrivateKey);
+    }
+
+    /**
+     * Generic swap helper via Bankr agent.
+     */
+    async swap(tokenIn: string, tokenOut: string, amount: string, walletAddress: string, privateKey: string): Promise<BankrResponse> {
+        return this.sendPrompt({
+            prompt: `Swap ${amount} of ${tokenIn} for ${tokenOut}`,
+            walletAddress,
+        }, privateKey);
     }
 }
 
