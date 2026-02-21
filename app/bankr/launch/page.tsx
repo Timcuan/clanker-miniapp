@@ -4,12 +4,17 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { z } from 'zod';
-import { Rocket, ArrowLeft, Image as ImageIcon, Twitter, CheckCircle2, ChevronDown } from 'lucide-react';
+import { 
+    Rocket, ArrowLeft, Image as ImageIcon, Twitter, 
+    CheckCircle2, ChevronDown, ChevronUp, Clipboard, 
+    Zap, ExternalLink, MessageCircle, Globe, Share2
+} from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-import { CLIButton, CLIInput, StatusBadge } from '@/components/ui/CLIButton';
-import { Terminal, TerminalLine, TerminalLoader, ResponsiveAscii } from '@/components/ui/Terminal';
+import { CLIButton, StatusBadge } from '@/components/ui/CLIButton';
+import { Terminal, TerminalLine, TerminalLoader } from '@/components/ui/Terminal';
+import { hapticFeedback } from '@/lib/telegram/webapp';
 
-// Schema mapping to `@bankr/cli` fields
+// Schema mapping exactly to Bankr SDK expectations
 const feeTypes = ['x', 'farcaster', 'ens', 'wallet'] as const;
 
 const bankrLaunchSchema = z.object({
@@ -29,11 +34,120 @@ const bankrLaunchSchema = z.object({
     description: z.string().optional(),
     telegram: z.string().url('Must be a valid Telegram URL').optional().or(z.literal('')),
     website: z.string().url('Must be a valid website URL').optional().or(z.literal('')),
-    autoSweep: z.boolean().optional(),
-    customGasLimit: z.boolean().optional(),
 });
 
 type BankrLaunchFormParams = z.infer<typeof bankrLaunchSchema>;
+
+// Premium Mobile Input (Shared Design Pattern)
+function MobileInput({
+    label, value, onChange, placeholder, error, multiline = false, uppercase = false, hint, icon: Icon
+}: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
+    error?: string;
+    multiline?: boolean;
+    uppercase?: boolean;
+    hint?: string;
+    icon?: any;
+}) {
+    const handlePaste = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            onChange(uppercase ? text.toUpperCase() : text.trim());
+            hapticFeedback('light');
+        } catch (err) {
+            console.error('Paste failed:', err);
+        }
+    };
+
+    const inputClass = `w-full bg-white dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50 bg-red-50/10' : 'border-gray-200 dark:border-gray-800'} rounded-xl px-4 py-3 pr-12 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10 transition-all`;
+
+    return (
+        <div className="space-y-1.5">
+            {label && (
+                <label className="flex items-center gap-2 font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                    {Icon && <Icon className="w-3 h-3 text-orange-500/70" />}
+                    <span className="text-orange-500 dark:text-orange-400 font-medium font-mono">--{label}</span>
+                </label>
+            )}
+            <div className="relative">
+                {multiline ? (
+                    <textarea
+                        value={value}
+                        onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
+                        placeholder={placeholder}
+                        rows={2}
+                        className={inputClass + ' resize-none'}
+                    />
+                ) : (
+                    <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
+                        placeholder={placeholder}
+                        className={inputClass}
+                    />
+                )}
+                <button
+                    type="button"
+                    onClick={handlePaste}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors"
+                >
+                    <Clipboard className="w-4 h-4" />
+                </button>
+            </div>
+            {(hint || error) && (
+                <p className={`font-mono text-[10px] ${error ? 'text-red-500' : 'text-gray-400/80'}`}>
+                    {error ? `Error: ${error}` : hint}
+                </p>
+            )}
+        </div>
+    );
+}
+
+// Custom Option Selector (Shared Design Pattern)
+function OptionSelector({
+    label, value, options, onChange, icons,
+}: {
+    label: string;
+    value: string;
+    options: string[];
+    onChange: (v: string) => void;
+    icons?: Record<string, any>;
+}) {
+    return (
+        <div className="space-y-2">
+            <label className="block font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-orange-500 font-medium">option</span> {label}
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {options.map((opt) => {
+                    const Icon = icons?.[opt];
+                    const active = value === opt;
+                    return (
+                        <button
+                            key={opt}
+                            onClick={() => {
+                                onChange(opt);
+                                hapticFeedback('light');
+                            }}
+                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border font-mono text-[10px] uppercase transition-all ${
+                                active 
+                                ? 'bg-orange-500/10 border-orange-500/50 text-orange-600 dark:text-orange-400 shadow-sm' 
+                                : 'bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800 text-gray-400 hover:border-gray-200 dark:hover:border-gray-700'
+                            }`}
+                        >
+                            {Icon && <Icon className={`w-3.5 h-3.5 ${active ? 'text-orange-500' : 'text-gray-400'}`} />}
+                            {opt}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
 
 export default function BankrLaunchPage() {
     const router = useRouter();
@@ -60,40 +174,24 @@ export default function BankrLaunchPage() {
         description: '',
         telegram: '',
         website: '',
-        autoSweep: true,
-        customGasLimit: false,
     });
 
     const [vanityEnabled, setVanityEnabled] = useState(false);
-
     const [errors, setErrors] = useState<Partial<Record<keyof BankrLaunchFormParams, string>>>({});
     const [submitError, setSubmitError] = useState<string>('');
     const [resultData, setResultData] = useState<{ txHash?: string, message?: string, deployedViaFallback?: boolean } | null>(null);
 
-    // Load Settings Preferences from Local Storage
+    // Initial setup
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const saved = localStorage.getItem('clanker_prefs');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    setFormData(prev => ({
-                        ...prev,
-                        autoSweep: parsed.autoSweep !== false, // Defaults to true if missing
-                        customGasLimit: parsed.customGasLimit === true
-                    }));
-                }
-            } catch (e) {
-                console.error("Failed to load generic prefs on launch screen");
-            }
+        if (address && !formData.rewardRecipient) {
+            setFormData(prev => ({ ...prev, rewardRecipient: address }));
         }
-    }, []);
+    }, [address]);
 
-    // Fee Type specific placeholders
     const getFeePlaceholder = (type: BankrLaunchFormParams['dashboardFeeType']) => {
         switch (type) {
-            case 'x': return '@username (Twitter/X handle)';
-            case 'farcaster': return '@username (Farcaster handle)';
+            case 'x': return '@username';
+            case 'farcaster': return '@username';
             case 'ens': return 'vitalik.eth';
             case 'wallet': return '0x...';
         }
@@ -101,7 +199,6 @@ export default function BankrLaunchPage() {
 
     const handleValidation = () => {
         try {
-            // For literal '', zod .optional().or(z.literal('')) works, but transform to undefined for API if empty
             const dataToValidate = {
                 ...formData,
                 image: formData.image || undefined,
@@ -123,6 +220,7 @@ export default function BankrLaunchPage() {
                     }
                 });
                 setErrors(formattedErrors);
+                hapticFeedback('error');
             }
             return false;
         }
@@ -133,19 +231,17 @@ export default function BankrLaunchPage() {
 
         setStep('processing');
         setSubmitError('');
+        hapticFeedback('medium');
 
         try {
             setLoadingText('Securing x402 payment channel...');
-            // Sleep to simulate UI progress safely, as real fetch takes time
-            await new Promise(r => setTimeout(r, 600));
+            await new Promise(r => setTimeout(r, 800));
 
             setLoadingText('Negotiating with Bankr Agent...');
 
             const response = await fetch('/api/bankr/launch', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
             });
 
@@ -157,17 +253,19 @@ export default function BankrLaunchPage() {
 
             setResultData(data);
             setStep('success');
+            hapticFeedback('success');
 
         } catch (error) {
             console.error('Bankr Launch Error:', error);
             setSubmitError(error instanceof Error ? error.message : 'Unknown error occurred');
             setStep('form');
+            hapticFeedback('error');
         }
     };
 
     if (!isAuthenticated) {
         return (
-            <div className="h-[100dvh] flex items-center justify-center p-4 bg-umkm-dark">
+            <div className="h-[100dvh] flex items-center justify-center p-4 bg-white dark:bg-gray-950">
                 <Terminal title="auth-error">
                     <TerminalLine text="Unauthorized access. Wallet not connected." type="error" />
                     <CLIButton variant="secondary" onClick={() => router.push('/')} className="mt-4">Return Home</CLIButton>
@@ -177,26 +275,23 @@ export default function BankrLaunchPage() {
     }
 
     return (
-        <div className="min-h-[100dvh] flex flex-col bg-umkm-dark text-umkm-light">
-            {/* Background */}
-            <div className="fixed inset-0 bg-[url('/matrix-bg.png')] opacity-5 pointer-events-none mix-blend-overlay" />
-
+        <div className="min-h-[100dvh] flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
             {/* Header */}
-            <header className="relative z-10 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-orange-500/20 bg-umkm-dark/90 backdrop-blur-md">
+            <header className="relative z-10 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => router.back()}
-                        className="p-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 transition-colors"
+                        className="p-2 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-all"
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
-                            <Rocket className="w-4 h-4 text-orange-400" />
+                        <div className="w-8 h-8 rounded-lg bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center border border-orange-500/20">
+                            <Rocket className="w-4 h-4 text-orange-500" />
                         </div>
                         <div>
-                            <h1 className="font-display font-bold text-sm text-orange-400">Bankr Launch</h1>
-                            <p className="font-mono text-[10px] text-gray-400">Agent-driven deployments</p>
+                            <h1 className="font-display font-bold text-sm text-gray-900 dark:text-white">Bankr Launch</h1>
+                            <p className="font-mono text-[10px] text-gray-500">Agent-driven Engine</p>
                         </div>
                     </div>
                 </div>
@@ -205,414 +300,301 @@ export default function BankrLaunchPage() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto px-4 py-6 relative z-10 scrollbar-hide flex flex-col items-center pb-24">
-                <div className="w-full max-w-lg">
-                    <Terminal title="bankr-launch-wizard" className="w-full">
+            <main className="flex-1 overflow-y-auto px-4 py-6 relative z-10 scrollbar-hide pb-24 max-w-2xl mx-auto w-full">
+                <AnimatePresence mode="wait">
+                    {step === 'form' && (
+                        <motion.div
+                            key="form"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="space-y-6"
+                        >
+                            <section className="p-4 rounded-2xl bg-orange-50/50 dark:bg-orange-500/5 border border-orange-100 dark:border-orange-500/10">
+                                <p className="font-mono text-xs text-orange-700 dark:text-orange-400 leading-relaxed">
+                                    <span className="font-bold">NOTE:</span> This mode utilizes the Bankr AI Agent for autonomous deployment and indexing. Ensure metadata is accurate for optimal agent performance.
+                                </p>
+                            </section>
 
-                        <AnimatePresence mode="wait">
-                            {step === 'form' && (
-                                <motion.div
-                                    key="form"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    className="space-y-5"
+                            {submitError && (
+                                <motion.div 
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="p-4 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 flex gap-3 text-red-600 dark:text-red-400"
                                 >
-                                    <TerminalLine prefix=">" text="Initialize @bankr/cli deployment wizard" type="command" />
-                                    <TerminalLine prefix=" " text="This mode uses the Bankr AI agent to deploy and index your token automatically." type="info" />
+                                    <Rocket className="w-5 h-5 flex-shrink-0 rotate-180" />
+                                    <div className="font-mono text-xs leading-relaxed">Launch Failed: {submitError}</div>
+                                </motion.div>
+                            )}
 
-                                    {submitError && (
-                                        <div className="p-3 mt-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-mono">
-                                            Error: {submitError}
-                                        </div>
-                                    )}
+                            {/* Core Config */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <MobileInput
+                                    label="name"
+                                    value={formData.name}
+                                    onChange={(v) => setFormData({ ...formData, name: v })}
+                                    placeholder="AI Protocol"
+                                    error={errors.name}
+                                />
+                                <MobileInput
+                                    label="symbol"
+                                    value={formData.symbol}
+                                    onChange={(v) => setFormData({ ...formData, symbol: v.toUpperCase() })}
+                                    placeholder="AIP"
+                                    uppercase
+                                    error={errors.symbol}
+                                />
+                            </div>
 
-                                    <div className="space-y-4 mt-6">
-                                        {/* Name & Symbol */}
-                                        <div className="flex gap-4">
-                                            <div className="flex-1 space-y-1">
-                                                <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
-                                                    <span className="text-orange-400">*</span> Token Name
-                                                </div>
-                                                <CLIInput
-                                                    value={formData.name}
-                                                    onChange={(v) => setFormData({ ...formData, name: v })}
-                                                    placeholder="AI Protocol"
-                                                    label="--name"
-                                                    error={errors.name}
-                                                />
-                                            </div>
-                                            <div className="w-1/3 space-y-1">
-                                                <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
-                                                    <span className="text-orange-400">*</span> Ticker
-                                                </div>
-                                                <CLIInput
-                                                    value={formData.symbol}
-                                                    onChange={(v) => setFormData({ ...formData, symbol: v.toUpperCase() })}
-                                                    placeholder="AIP"
-                                                    label="--symbol"
-                                                    error={errors.symbol}
-                                                />
-                                            </div>
-                                        </div>
+                            <MobileInput
+                                label="image"
+                                value={formData.image || ''}
+                                onChange={(v) => setFormData({ ...formData, image: v })}
+                                placeholder="ipfs://... or https://..."
+                                icon={ImageIcon}
+                                error={errors.image}
+                            />
 
-                                        {/* Image */}
-                                        <div className="space-y-1">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2 text-umkm-light font-mono text-sm">
-                                                    <ImageIcon className="w-3.5 h-3.5 text-gray-400" /> Image URL <span className="text-[10px] text-gray-500">(Optional)</span>
-                                                </div>
-                                            </div>
-                                            <CLIInput
-                                                value={formData.image || ''}
-                                                onChange={(v) => setFormData({ ...formData, image: v })}
-                                                placeholder="https://example.com/logo.png"
-                                                label="--image"
-                                                error={errors.image}
-                                            />
-                                        </div>
+                            <MobileInput
+                                label="description"
+                                value={formData.description || ''}
+                                onChange={(v) => setFormData({ ...formData, description: v })}
+                                placeholder="A revolutionary new protocol..."
+                                multiline
+                                error={errors.description}
+                            />
 
-                                        {/* Description */}
-                                        <div className="space-y-1">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2 text-umkm-light font-mono text-sm">
-                                                    Description <span className="text-[10px] text-gray-500">(Optional)</span>
-                                                </div>
-                                            </div>
-                                            <CLIInput
-                                                value={formData.description || ''}
-                                                onChange={(v) => setFormData({ ...formData, description: v })}
-                                                placeholder="A revolutionary new protocol..."
-                                                label="--desc"
-                                                error={errors.description}
-                                            />
-                                        </div>
+                            {/* Socials Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <MobileInput
+                                    label="tweet"
+                                    value={formData.tweet || ''}
+                                    onChange={(v) => setFormData({ ...formData, tweet: v })}
+                                    placeholder="https://x.com/..."
+                                    icon={Twitter}
+                                    error={errors.tweet}
+                                />
+                                <MobileInput
+                                    label="warpcast"
+                                    value={formData.cast || ''}
+                                    onChange={(v) => setFormData({ ...formData, cast: v })}
+                                    placeholder="https://warpcast.com/..."
+                                    icon={Share2}
+                                    error={errors.cast}
+                                />
+                                <MobileInput
+                                    label="telegram"
+                                    value={formData.telegram || ''}
+                                    onChange={(v) => setFormData({ ...formData, telegram: v })}
+                                    placeholder="https://t.me/..."
+                                    icon={MessageCircle}
+                                    error={errors.telegram}
+                                />
+                                <MobileInput
+                                    label="website"
+                                    value={formData.website || ''}
+                                    onChange={(v) => setFormData({ ...formData, website: v })}
+                                    placeholder="https://..."
+                                    icon={Globe}
+                                    error={errors.website}
+                                />
+                            </div>
 
-                                        {/* Social Links (Tweet, Cast, Telegram, Website) */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-2">
-                                            {/* X/Twitter & Farcaster Row */}
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-xs">
-                                                    <Twitter className="w-3.5 h-3.5 text-blue-400" /> Tweet
-                                                </div>
-                                                <CLIInput
-                                                    value={formData.tweet || ''}
-                                                    onChange={(v) => setFormData({ ...formData, tweet: v })}
-                                                    placeholder="https://x.com/..."
-                                                    label="--x"
-                                                    error={errors.tweet}
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-xs">
-                                                    <span className="text-purple-400 font-bold">F</span> Farcaster Cast
-                                                </div>
-                                                <CLIInput
-                                                    value={formData.cast || ''}
-                                                    onChange={(v) => setFormData({ ...formData, cast: v })}
-                                                    placeholder="https://warpcast.com/..."
-                                                    label="--cast"
-                                                    error={errors.cast}
-                                                />
-                                            </div>
+                            {/* Identity Settings */}
+                            <div className="space-y-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <OptionSelector
+                                    label="launcher_identity"
+                                    value={formData.launcherType}
+                                    options={['x', 'farcaster', 'ens', 'wallet']}
+                                    onChange={(v) => setFormData({ ...formData, launcherType: v as any })}
+                                    icons={{ x: Twitter, farcaster: Share2, ens: Globe, wallet: Rocket }}
+                                />
+                                <MobileInput
+                                    label="id_handle"
+                                    value={formData.launcher}
+                                    onChange={(v) => setFormData({ ...formData, launcher: v })}
+                                    placeholder={getFeePlaceholder(formData.launcherType)}
+                                    error={errors.launcher}
+                                />
+                            </div>
 
-                                            {/* Telegram & Website Row */}
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-xs">
-                                                    Telegram
-                                                </div>
-                                                <CLIInput
-                                                    value={formData.telegram || ''}
-                                                    onChange={(v) => setFormData({ ...formData, telegram: v })}
-                                                    placeholder="https://t.me/..."
-                                                    label="--tg"
-                                                    error={errors.telegram}
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-xs">
-                                                    Website
-                                                </div>
-                                                <CLIInput
-                                                    value={formData.website || ''}
-                                                    onChange={(v) => setFormData({ ...formData, website: v })}
-                                                    placeholder="https://mysite.com"
-                                                    label="--web"
-                                                    error={errors.website}
-                                                />
-                                            </div>
-                                        </div>
+                            <div className="space-y-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <OptionSelector
+                                    label="fee_distribution_profile"
+                                    value={formData.dashboardFeeType}
+                                    options={['x', 'farcaster', 'ens', 'wallet']}
+                                    onChange={(v) => setFormData({ ...formData, dashboardFeeType: v as any })}
+                                    icons={{ x: Twitter, farcaster: Share2, ens: Globe, wallet: Rocket }}
+                                />
+                                <MobileInput
+                                    label="fee_handle"
+                                    value={formData.dashboardFee}
+                                    onChange={(v) => setFormData({ ...formData, dashboardFee: v })}
+                                    placeholder={getFeePlaceholder(formData.dashboardFeeType)}
+                                    error={errors.dashboardFee}
+                                    hint="This handle is displayed on the Clanker dashboard as the interface fee recipient."
+                                />
+                            </div>
 
-                                        {/* Launcher Recipient & Type Row */}
-                                        <div className="space-y-3 pt-2 border-t border-white/5">
-                                            <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
-                                                <span className="text-orange-400">*</span> Launcher Identity <span className="text-[10px] text-gray-500 font-normal ml-1">(Displayed on Dashboard)</span>
-                                            </div>
-
-                                            <div className="flex flex-col sm:flex-row gap-3">
-                                                {/* Launcher Type Selector */}
-                                                <div className="sm:w-1/3">
-                                                    <div className="relative">
-                                                        <select
-                                                            value={formData.launcherType}
-                                                            onChange={(e) => setFormData({ ...formData, launcherType: e.target.value as any })}
-                                                            className="w-full appearance-none bg-black/40 border-b border-gray-700 hover:border-orange-500/50 outline-none px-3 py-2 text-umkm-light text-sm font-mono transition-colors"
-                                                        >
-                                                            <option value="x">X / Twitter</option>
-                                                            <option value="farcaster">Farcaster</option>
-                                                            <option value="ens">ENS Domain</option>
-                                                            <option value="wallet">Wallet Address</option>
-                                                        </select>
-                                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                                                    </div>
-                                                </div>
-
-                                                {/* Launcher Recipient Input */}
-                                                <div className="flex-1">
-                                                    <CLIInput
-                                                        value={formData.launcher}
-                                                        onChange={(v) => setFormData({ ...formData, launcher: v })}
-                                                        placeholder={getFeePlaceholder(formData.launcherType)}
-                                                        label={`--launcher`}
-                                                        error={errors.launcher}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Fee Recipient & Type Row */}
-                                        <div className="space-y-3 pt-2 border-t border-white/5">
-                                            <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
-                                                <span className="text-orange-400">*</span> Interface Fee Distribution <span className="text-[10px] text-gray-500 font-normal ml-1">(Spoofed)</span>
-                                            </div>
-
-                                            <div className="flex flex-col sm:flex-row gap-3">
-                                                {/* Fee Type Selector */}
-                                                <div className="sm:w-1/3">
-                                                    <div className="relative">
-                                                        <select
-                                                            value={formData.dashboardFeeType}
-                                                            onChange={(e) => setFormData({ ...formData, dashboardFeeType: e.target.value as any })}
-                                                            className="w-full appearance-none bg-black/40 border-b border-gray-700 hover:border-orange-500/50 outline-none px-3 py-2 text-umkm-light text-sm font-mono transition-colors"
-                                                        >
-                                                            <option value="x">X / Twitter</option>
-                                                            <option value="farcaster">Farcaster</option>
-                                                            <option value="ens">ENS Domain</option>
-                                                            <option value="wallet">Wallet Address</option>
-                                                        </select>
-                                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                                                    </div>
-                                                </div>
-
-                                                {/* Fee Recipient Input */}
-                                                <div className="flex-1">
-                                                    <CLIInput
-                                                        value={formData.dashboardFee}
-                                                        onChange={(v) => setFormData({ ...formData, dashboardFee: v })}
-                                                        placeholder={getFeePlaceholder(formData.dashboardFeeType)}
-                                                        label={`--fee`}
-                                                        error={errors.dashboardFee}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Real On-Chain Reward Settings */}
-                                        <div className="space-y-4 pt-4 border-t border-white/5">
-                                            <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
-                                                <span className="text-orange-400">*</span> Real On-Chain Tax & Rewards
-                                            </div>
-
-                                            <div className="p-4 rounded-xl border border-gray-800 bg-black/20 space-y-4">
-                                                {/* Tax Type Selector */}
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs text-gray-400 font-mono">Pool Tax Structure</span>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setFormData({ ...formData, taxType: 'dynamic' })}
-                                                            className={`px-3 py-1.5 text-[10px] font-mono rounded-lg border transition-colors ${formData.taxType === 'dynamic' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'border-gray-800 text-gray-500 hover:border-gray-600'}`}
-                                                        >
-                                                            DYNAMIC (1-10%)
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setFormData({ ...formData, taxType: 'static' })}
-                                                            className={`px-3 py-1.5 text-[10px] font-mono rounded-lg border transition-colors ${formData.taxType === 'static' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'border-gray-800 text-gray-500 hover:border-gray-600'}`}
-                                                        >
-                                                            STATIC (CUSTOM%)
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Tax Percentage Slider */}
-                                                {formData.taxType === 'static' && (
-                                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="pt-2">
-                                                        <div className="flex justify-between items-center mb-2">
-                                                            <span className="text-xs font-mono text-gray-500">Static Tax</span>
-                                                            <span className="text-xs font-mono font-bold text-orange-400">{formData.taxPercentage}%</span>
-                                                        </div>
-                                                        <input
-                                                            type="range"
-                                                            min="0"
-                                                            max="90"
-                                                            step="0.1"
-                                                            value={formData.taxPercentage}
-                                                            onChange={(e) => setFormData({ ...formData, taxPercentage: parseFloat(e.target.value) })}
-                                                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
-                                                        />
-                                                        <p className="mt-1 text-[10px] text-gray-500 font-mono text-right">0% - 90% Override</p>
-                                                    </motion.div>
-                                                )}
-
-                                                {/* Real Reward Recipient */}
-                                                <div className="pt-2">
-                                                    <CLIInput
-                                                        value={formData.rewardRecipient}
-                                                        onChange={(v) => setFormData({ ...formData, rewardRecipient: v })}
-                                                        placeholder="0x..."
-                                                        label="--reward-target"
-                                                        error={errors.rewardRecipient}
-                                                    />
-                                                    <p className="mt-1 text-[10px] text-orange-500/70 font-mono leading-tight">This address will securely receive ALL the actual protocol fees. The dashboard profile above is merely a visual spoof.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Vanity Address */}
-                                        <div className="space-y-4 pt-4 border-t border-white/5">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-orange-400 font-bold">✨</span>
-                                                    <span className="text-umkm-light font-mono text-sm">Vanity Address </span>
-                                                </div>
+                            {/* Technicals */}
+                            <div className="space-y-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 space-y-5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-mono text-xs text-gray-500">Tax Type</span>
+                                        <div className="flex gap-2">
+                                            {['dynamic', 'static'].map(t => (
                                                 <button
-                                                    onClick={() => {
-                                                        const newVal = !vanityEnabled;
-                                                        setVanityEnabled(newVal);
-
-                                                        // Instantly update the salt inside formData based on toggle
-                                                        if (newVal) {
-                                                            const randomPart = Array.from({ length: 61 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-                                                            setFormData(p => ({ ...p, salt: '0xba3' + randomPart }));
-                                                        } else {
-                                                            const fullRandom = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-                                                            setFormData(p => ({ ...p, salt: fullRandom }));
-                                                        }
-                                                    }}
-                                                    className={`w-12 h-7 rounded-full transition-all duration-300 relative ${vanityEnabled ? 'bg-orange-500' : 'bg-gray-800 border-gray-700 border'}`}
+                                                    key={t}
+                                                    onClick={() => setFormData({ ...formData, taxType: t as any })}
+                                                    className={`px-3 py-1.5 rounded-lg border font-mono text-[10px] uppercase transition-all ${
+                                                        formData.taxType === t 
+                                                        ? 'bg-orange-500 text-white border-orange-500 shadow-sm' 
+                                                        : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-500'
+                                                    }`}
                                                 >
-                                                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${vanityEnabled ? 'left-6' : 'left-1'}`} />
+                                                    {t}
                                                 </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {formData.taxType === 'static' && (
+                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-2">
+                                            <div className="flex justify-between items-center px-1">
+                                                <span className="font-mono text-[10px] text-gray-500">Static Percent</span>
+                                                <span className="font-mono text-xs font-bold text-orange-500">{formData.taxPercentage}%</span>
                                             </div>
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="90"
+                                                step="0.1"
+                                                value={formData.taxPercentage}
+                                                onChange={(e) => setFormData({ ...formData, taxPercentage: parseFloat(e.target.value) })}
+                                                className="w-full h-1.5 bg-gray-200 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                                            />
+                                        </motion.div>
+                                    )}
 
-                                            <AnimatePresence>
-                                                {vanityEnabled && (
-                                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                                                        <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl space-y-2">
-                                                            <p className="text-xs font-mono text-orange-200">
-                                                                AI Agent will enforce token creation with a customized <span className="font-bold text-orange-400">bA3</span> smart contract prefix via `CREATE2`.
-                                                            </p>
-                                                            <div className="flex justify-between items-center text-[10px] font-mono p-2 bg-black/40 rounded-lg border border-black/50">
-                                                                <span className="text-gray-500">Salt</span>
-                                                                <span className="text-orange-400/80 blur-[2px] hover:blur-none transition-all duration-300 cursor-help" title="Cryptographic Salt for CREATE2 Opcode">
-                                                                    {formData.salt?.substring(0, 15)}...
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-6">
-                                        <CLIButton
-                                            variant="primary"
-                                            onClick={handleSubmit}
-                                            fullWidth
-                                            className="!bg-orange-500 hover:!bg-orange-600 shadow-orange-500/20"
-                                            icon={<Rocket className="w-4 h-4" />}
-                                        >
-                                            Execute Launch Sequence
-                                        </CLIButton>
-                                        <p className="text-center text-[10px] font-mono text-gray-500 mt-3">
-                                            Request will be processed by Bankr AI via x402 protocol ($0.10)
-                                        </p>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {step === 'processing' && (
-                                <motion.div
-                                    key="processing"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className="py-12 space-y-4"
-                                >
-                                    <div className="flex justify-center mb-6">
-                                        <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center">
-                                            <motion.div animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}>
-                                                <Rocket className="w-8 h-8 text-orange-400" />
-                                            </motion.div>
-                                        </div>
-                                    </div>
-                                    <TerminalLoader text={loadingText} />
-                                    <TerminalLine prefix=" " text="Do not close this window." type="warning" />
-                                </motion.div>
-                            )}
-
-                            {step === 'success' && (
-                                <motion.div
-                                    key="success"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="space-y-4 py-8"
-                                >
-                                    <div className="flex justify-center mb-6">
-                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center ${resultData?.deployedViaFallback ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                                            <CheckCircle2 className="w-8 h-8" />
-                                        </div>
-                                    </div>
-
-                                    <TerminalLine
-                                        text={resultData?.deployedViaFallback ? "Token successfully launched via Clanker Fallback!" : "Launch successfully executed by Agent Bankr!"}
-                                        type={resultData?.deployedViaFallback ? "warning" : "success"}
+                                    <MobileInput
+                                        label="onchain_recipient"
+                                        value={formData.rewardRecipient}
+                                        onChange={(v) => setFormData({ ...formData, rewardRecipient: v })}
+                                        placeholder="0x..."
+                                        error={errors.rewardRecipient}
+                                        hint="Final recipient of real on-chain fees."
                                     />
+                                </div>
 
-                                    {resultData?.message && (
-                                        <div className={`p-4 rounded-xl border font-mono text-sm whitespace-pre-wrap ${resultData?.deployedViaFallback
-                                            ? 'bg-amber-500/5 border-amber-500/20 text-amber-200'
-                                            : 'bg-umkm-light/5 border-umkm-light/10 text-gray-300'
-                                            }`}>
-                                            {resultData.message}
-                                        </div>
-                                    )}
-
-                                    {resultData?.txHash && (
-                                        <TerminalLine text={resultData?.deployedViaFallback ? `Deployment Tx: ${resultData.txHash}` : `Payment Tx: ${resultData.txHash}`} type="output" />
-                                    )}
-
-                                    <div className="pt-6">
-                                        <CLIButton
-                                            variant="secondary"
-                                            onClick={() => {
-                                                const newSalt = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-                                                setFormData({ name: '', symbol: '', image: '', tweet: '', cast: '', description: '', telegram: '', website: '', launcherType: 'x', launcher: '', dashboardFeeType: 'x', dashboardFee: '', taxType: 'dynamic', taxPercentage: 10, rewardRecipient: address || '', salt: newSalt });
-                                                setVanityEnabled(false);
-                                                setStep('form');
-                                            }}
-                                            fullWidth
-                                        >
-                                            Launch Another
-                                        </CLIButton>
+                                <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                                    <div className="flex items-center gap-2">
+                                        <Zap className={`w-4 h-4 ${vanityEnabled ? 'text-orange-500' : 'text-gray-400'}`} />
+                                        <span className="font-mono text-xs text-gray-700 dark:text-gray-300 font-medium">Vanity Prefix (bA3)</span>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </Terminal>
-                </div>
+                                    <button
+                                        onClick={() => {
+                                            const newVal = !vanityEnabled;
+                                            setVanityEnabled(newVal);
+                                            hapticFeedback('medium');
+                                            if (newVal) {
+                                                const randomPart = Array.from({ length: 61 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+                                                setFormData(p => ({ ...p, salt: '0xba3' + randomPart }));
+                                            }
+                                        }}
+                                        className={`w-12 h-6 rounded-full transition-all relative ${vanityEnabled ? 'bg-orange-500 shadow-md' : 'bg-gray-200 dark:bg-gray-800'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${vanityEnabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <CLIButton
+                                variant="primary"
+                                onClick={handleSubmit}
+                                fullWidth
+                                size="lg"
+                                className="!bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20 group"
+                                icon={<Rocket className="w-5 h-5 group-hover:animate-bounce" />}
+                            >
+                                Execute Launch Sequence
+                            </CLIButton>
+                        </motion.div>
+                    )}
+
+                    {step === 'processing' && (
+                        <motion.div
+                            key="processing"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="flex flex-col items-center py-20 px-4"
+                        >
+                            <Terminal className="w-full max-w-sm">
+                                <div className="flex justify-center py-8">
+                                    <motion.div 
+                                        animate={{ rotate: 360 }} 
+                                        transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                                        className="relative"
+                                    >
+                                        <div className="absolute inset-0 blur-xl bg-orange-500/30 rounded-full" />
+                                        <Rocket className="w-12 h-12 text-orange-500 relative z-10" />
+                                    </motion.div>
+                                </div>
+                                <TerminalLoader text={loadingText} />
+                                <div className="mt-6 flex flex-col gap-2">
+                                    <TerminalLine text="Contacting Bankr AI Agent..." type="info" />
+                                    <TerminalLine text="Bypassing deployment limits..." type="command" />
+                                    <TerminalLine text="Awaiting confirmation..." type="output" />
+                                </div>
+                            </Terminal>
+                        </motion.div>
+                    )}
+
+                    {step === 'success' && (
+                        <motion.div
+                            key="success"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex flex-col items-center py-12 px-4"
+                        >
+                            <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 mb-8 shadow-lg shadow-emerald-500/10">
+                                <CheckCircle2 className="w-10 h-10" />
+                            </div>
+                            
+                            <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-2 text-center">Deployment Successful</h2>
+                            <p className="font-mono text-xs text-gray-500 text-center mb-8">Token has been launched and submitted for indexing.</p>
+
+                            <Terminal className="w-full mb-8">
+                                <TerminalLine text="Agent Bankr: Mission accomplished." type="success" />
+                                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 mt-2 font-mono text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
+                                    {resultData?.message || "Deployment parameters confirmed. Social links and metadata have been successfully bound to the smart contract."}
+                                </div>
+                                {resultData?.txHash && (
+                                    <div className="mt-4 flex items-center justify-between p-3 bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-xl">
+                                        <span className="font-mono text-[10px] text-gray-400">Transaction</span>
+                                        <a 
+                                            href={`https://basescan.org/tx/${resultData.txHash}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="font-mono text-[10px] text-orange-500 flex items-center gap-1 hover:underline"
+                                        >
+                                            View on Scan <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                    </div>
+                                )}
+                            </Terminal>
+
+                            <CLIButton
+                                variant="secondary"
+                                onClick={() => setStep('form')}
+                                fullWidth
+                                icon={<Share2 className="w-4 h-4" />}
+                            >
+                                Launch Another Token
+                            </CLIButton>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
         </div>
     );
