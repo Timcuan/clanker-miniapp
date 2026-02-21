@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { bankrService } from '@/lib/bankr/sdk';
+import { clankerService } from '@/lib/clanker/sdk';
+import { MevModuleType } from '@/lib/clanker/constants';
 import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
 
 // Server-side validation schema matching the frontend payload
@@ -47,29 +49,85 @@ export async function POST(request: NextRequest) {
 
         const data = validationResult.data;
 
-        // 3. Execute Launch via Bankr SDK
-        // This will trigger the x402 payment flow (or auto-swap logic) seamlessly inside the SDK
-        const result = await bankrService.launchToken({
-            name: data.name,
-            image: data.image,
-            tweet: data.tweet,
-            feeType: data.feeType,
-            fee: data.fee,
-            walletAddress: session.address
-        }, session.privateKey);
+        // 3. Execute Launch via Bankr SDK with Timeout
+        // Set a 20 second timeout for the Bankr Agent (due to x402 payment + LLM processing)
+        const BANKR_TIMEOUT_MS = 20000;
 
-        if (!result.success) {
-            return NextResponse.json({ error: result.error || 'Bankr launch failed to execute' }, { status: 400 });
+        let txHash: string | undefined;
+        let message: string;
+        let deployedViaFallback = false;
+
+        try {
+            console.log(`[Bankr Launch API] Attempting AI Agent Launch for ${data.name}...`);
+
+            const bankrPromise = bankrService.launchToken({
+                name: data.name,
+                image: data.image,
+                tweet: data.tweet,
+                feeType: data.feeType,
+                fee: data.fee,
+                walletAddress: session.address
+            }, session.privateKey);
+
+            const timeoutPromise = new Promise<{ success: false, error: string }>((_, reject) =>
+                setTimeout(() => reject(new Error('Bankr Agent Timeout')), BANKR_TIMEOUT_MS)
+            );
+
+            const result = await Promise.race([bankrPromise, timeoutPromise]) as any;
+
+            if (!result.success) {
+                throw new Error(result.error || 'Bankr launch failed to execute');
+            }
+
+            const txHashMatch = result.error ? result.error.match(/Payment Tx: (0x[a-fA-F0-9]+)/) : null;
+            txHash = txHashMatch ? txHashMatch[1] : (result.txData?.txHash || undefined);
+            message = result.message || 'Launch successfully submitted to Agent Bankr';
+            console.log(`[Bankr Launch API] AI Agent Success. Tx: ${txHash}`);
+
+        } catch (bankrError) {
+            console.warn(`[Bankr Launch API] Agent Failed/Timed Out (${bankrError}). Falling back to Native Clanker...`);
+
+            // --- SMART FALLBACK TO NATIVE CLANKER CONTROLS ---
+            deployedViaFallback = true;
+
+            // Attempt to map the fee recipient if it's a valid wallet, otherwise fallback to the user's address
+            const isWalletRegex = /^0x[a-fA-F0-9]{40}$/i;
+            const fallbackFeeRecipient = isWalletRegex.test(data.fee) ? data.fee : session.address;
+
+            const fallbackResult = await clankerService.deployToken(session.privateKey, {
+                name: data.name,
+                symbol: data.name.substring(0, 5).toUpperCase(), // Generate short symbol
+                image: data.image || '',
+                description: `Created via UMKM Terminal (Fallback Mode)`,
+                socialMediaUrls: data.tweet ? [{ platform: 'x', url: data.tweet }] : [],
+                tokenAdmin: session.address,
+                rewardRecipient: fallbackFeeRecipient,
+            }, {
+                feeType: 'static',
+                poolPositionType: 'Standard',
+                mevModuleType: MevModuleType.None,
+                blockDelay: 0,
+                creatorReward: 0,
+                devBuyEth: 0,
+                platform: 'telegram',
+                telegramUserId: session.telegramUserId,
+            });
+
+            if (!fallbackResult.success) {
+                throw new Error(`Fallback Native Deployment also failed: ${fallbackResult.error}`);
+            }
+
+            txHash = fallbackResult.txHash;
+            message = 'Agent Bankr was unreachable. The token was securely launched via Native Clanker Smart Contracts on-chain.';
+            console.log(`[Bankr Launch API] Native Clanker Fallback Success. Tx: ${txHash}`);
         }
 
         // 4. Return Success
-        const txHashMatch = result.error ? result.error.match(/Payment Tx: (0x[a-fA-F0-9]+)/) : null;
-        const txHash = txHashMatch ? txHashMatch[1] : (result.txData?.txHash || undefined);
-
         return NextResponse.json({
             success: true,
-            message: result.message || 'Launch successfully submitted to Agent Bankr',
-            txHash: txHash,
+            message,
+            txHash,
+            deployedViaFallback,
         });
 
     } catch (error) {

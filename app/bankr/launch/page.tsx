@@ -40,7 +40,7 @@ export default function BankrLaunchPage() {
 
     const [errors, setErrors] = useState<Partial<Record<keyof BankrLaunchFormParams, string>>>({});
     const [submitError, setSubmitError] = useState<string>('');
-    const [resultData, setResultData] = useState<{ txHash?: string, message?: string } | null>(null);
+    const [resultData, setResultData] = useState<{ txHash?: string, message?: string, deployedViaFallback?: boolean } | null>(null);
 
     // Fee Type specific placeholders
     const getFeePlaceholder = (type: BankrLaunchFormParams['feeType']) => {
@@ -308,21 +308,27 @@ export default function BankrLaunchPage() {
                                     className="space-y-4 py-8"
                                 >
                                     <div className="flex justify-center mb-6">
-                                        <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center ${resultData?.deployedViaFallback ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                                             <CheckCircle2 className="w-8 h-8" />
                                         </div>
                                     </div>
 
-                                    <TerminalLine text="Launch successfully executed by Agent Bankr!" type="success" />
+                                    <TerminalLine
+                                        text={resultData?.deployedViaFallback ? "Token successfully launched via Clanker Fallback!" : "Launch successfully executed by Agent Bankr!"}
+                                        type={resultData?.deployedViaFallback ? "warning" : "success"}
+                                    />
 
                                     {resultData?.message && (
-                                        <div className="p-4 rounded-xl bg-umkm-light/5 border border-umkm-light/10 font-mono text-sm text-gray-300 whitespace-pre-wrap">
+                                        <div className={`p-4 rounded-xl border font-mono text-sm whitespace-pre-wrap ${resultData?.deployedViaFallback
+                                                ? 'bg-amber-500/5 border-amber-500/20 text-amber-200'
+                                                : 'bg-umkm-light/5 border-umkm-light/10 text-gray-300'
+                                            }`}>
                                             {resultData.message}
                                         </div>
                                     )}
 
                                     {resultData?.txHash && (
-                                        <TerminalLine text={`Payment Tx: ${resultData.txHash}`} type="output" />
+                                        <TerminalLine text={resultData?.deployedViaFallback ? `Deployment Tx: ${resultData.txHash}` : `Payment Tx: ${resultData.txHash}`} type="output" />
                                     )}
 
                                     <div className="pt-6">
