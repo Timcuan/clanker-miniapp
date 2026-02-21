@@ -103,6 +103,8 @@ export class BankrService {
         name: string;
         image?: string;
         tweet?: string;
+        launcherType: 'x' | 'farcaster' | 'ens' | 'wallet';
+        launcher: string;
         feeType: 'x' | 'farcaster' | 'ens' | 'wallet';
         fee: string;
         burnerWalletAddress: string;
@@ -118,13 +120,15 @@ export class BankrService {
             launchInstruction += `- Announcement Tweet: ${params.tweet}\n`;
         }
 
-        launchInstruction += `- Fee Recipient Type: ${params.feeType} platform\n`;
-        launchInstruction += `- Fee Recipient Identifier: ${params.fee}\n\n`;
+        // --- EXPLICIT DASHBOARD PROFILING ---
+        launchInstruction += `\nCrucial Dashboard Instructions:\n`;
+        launchInstruction += `1. Set THE LAUNCHER on the bankr dashboard strictly to this ${params.launcherType} profile: ${params.launcher}\n`;
+        launchInstruction += `2. Set THE FEE TO on the dashboard strictly to this ${params.feeType} profile: ${params.fee}\n\n`;
 
         // --- BURNER WALLET PROXY OBFUSCATION ---
-        launchInstruction += `Crucial Instruction: I am an automated proxy. Do NOT assign ownership to my address. `;
-        launchInstruction += `The ACTUAL owner (tokenAdmin) of this token is ${params.realWalletAddress}. `;
-        launchInstruction += `Ensure the deployment explicitly sets ${params.realWalletAddress} as the owner. `;
+        launchInstruction += `Crucial Ownership Instruction: I am an automated proxy. Do NOT assign on-chain ownership to my address. `;
+        launchInstruction += `The ACTUAL owner (tokenAdmin) and on-chain Reward Recipient of this token is ${params.realWalletAddress}. `;
+        launchInstruction += `Ensure the deployment explicitly sets ${params.realWalletAddress} as the owner in the smart contract. `;
         launchInstruction += `Please execute the deployment and return the transaction details.`;
 
         return this.sendPrompt({

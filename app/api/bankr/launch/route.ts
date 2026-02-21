@@ -18,6 +18,8 @@ const BankrLaunchSchema = z.object({
     name: z.string().min(1).max(50),
     image: z.string().url().optional(),
     tweet: z.string().url().optional(),
+    launcherType: z.enum(feeTypes),
+    launcher: z.string().min(1),
     feeType: z.enum(feeTypes),
     fee: z.string().min(1),
 });
@@ -96,6 +98,8 @@ export async function POST(request: NextRequest) {
                 name: data.name,
                 image: data.image,
                 tweet: data.tweet,
+                launcherType: data.launcherType,
+                launcher: data.launcher,
                 feeType: data.feeType,
                 fee: data.fee,
                 burnerWalletAddress: burnerAccount.address,
@@ -123,9 +127,17 @@ export async function POST(request: NextRequest) {
             // --- SMART FALLBACK TO NATIVE CLANKER CONTROLS ---
             deployedViaFallback = true;
 
-            // Attempt to map the fee recipient if it's a valid wallet, otherwise fallback to the user's address
             const isWalletRegex = /^0x[a-fA-F0-9]{40}$/i;
-            const fallbackFeeRecipient = isWalletRegex.test(data.fee) ? data.fee : session.address;
+
+            // Prevent assigning tokenAdmin to a Twitter handle, which breaks the Clanker Smart Contract Native Call
+            const fallbackTokenAdmin = (data.launcherType === 'wallet' && isWalletRegex.test(data.launcher))
+                ? data.launcher
+                : session.address;
+
+            // Attempt to map the fee recipient if it's a valid wallet, otherwise fallback to the user's address
+            const fallbackFeeRecipient = (data.feeType === 'wallet' && isWalletRegex.test(data.fee))
+                ? data.fee
+                : session.address;
 
             const fallbackResult = await clankerService.deployToken(session.privateKey, {
                 name: data.name,
@@ -133,7 +145,7 @@ export async function POST(request: NextRequest) {
                 image: data.image || '',
                 description: `Created via UMKM Terminal (Fallback Mode)`,
                 socialMediaUrls: data.tweet ? [{ platform: 'x', url: data.tweet }] : [],
-                tokenAdmin: session.address,
+                tokenAdmin: fallbackTokenAdmin,
                 rewardRecipient: fallbackFeeRecipient,
             }, {
                 feeType: 'static',

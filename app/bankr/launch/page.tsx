@@ -16,6 +16,8 @@ export const bankrLaunchSchema = z.object({
     name: z.string().min(1, 'Name is required').max(50, 'Name too long'),
     image: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     tweet: z.string().url('Must be a valid X/Twitter URL').optional().or(z.literal('')),
+    launcherType: z.enum(feeTypes, { required_error: 'Launcher type is required' }),
+    launcher: z.string().min(1, 'Launcher identity is required'),
     feeType: z.enum(feeTypes, { required_error: 'Fee type is required' }),
     fee: z.string().min(1, 'Fee recipient is required'),
 });
@@ -34,6 +36,8 @@ export default function BankrLaunchPage() {
         name: '',
         image: '',
         tweet: '',
+        launcherType: 'x',
+        launcher: '',
         feeType: 'x',
         fee: '',
     });
@@ -224,6 +228,43 @@ export default function BankrLaunchPage() {
                                             />
                                         </div>
 
+                                        {/* Launcher Recipient & Type Row */}
+                                        <div className="space-y-3 pt-2 border-t border-white/5">
+                                            <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
+                                                <span className="text-orange-400">*</span> Launcher Identity <span className="text-[10px] text-gray-500 font-normal ml-1">(Displayed on Dashboard)</span>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row gap-3">
+                                                {/* Launcher Type Selector */}
+                                                <div className="sm:w-1/3">
+                                                    <div className="relative">
+                                                        <select
+                                                            value={formData.launcherType}
+                                                            onChange={(e) => setFormData({ ...formData, launcherType: e.target.value as any })}
+                                                            className="w-full appearance-none bg-black/40 border-b border-gray-700 hover:border-orange-500/50 outline-none px-3 py-2 text-umkm-light text-sm font-mono transition-colors"
+                                                        >
+                                                            <option value="x">X / Twitter</option>
+                                                            <option value="farcaster">Farcaster</option>
+                                                            <option value="ens">ENS Domain</option>
+                                                            <option value="wallet">Wallet Address</option>
+                                                        </select>
+                                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                                                    </div>
+                                                </div>
+
+                                                {/* Launcher Recipient Input */}
+                                                <div className="flex-1">
+                                                    <CLIInput
+                                                        value={formData.launcher}
+                                                        onChange={(v) => setFormData({ ...formData, launcher: v })}
+                                                        placeholder={getFeePlaceholder(formData.launcherType)}
+                                                        label={`--launcher`}
+                                                        error={errors.launcher}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         {/* Fee Recipient & Type Row */}
                                         <div className="space-y-3 pt-2 border-t border-white/5">
                                             <div className="flex items-center gap-2 mb-2 text-umkm-light font-mono text-sm">
@@ -320,8 +361,8 @@ export default function BankrLaunchPage() {
 
                                     {resultData?.message && (
                                         <div className={`p-4 rounded-xl border font-mono text-sm whitespace-pre-wrap ${resultData?.deployedViaFallback
-                                                ? 'bg-amber-500/5 border-amber-500/20 text-amber-200'
-                                                : 'bg-umkm-light/5 border-umkm-light/10 text-gray-300'
+                                            ? 'bg-amber-500/5 border-amber-500/20 text-amber-200'
+                                            : 'bg-umkm-light/5 border-umkm-light/10 text-gray-300'
                                             }`}>
                                             {resultData.message}
                                         </div>
@@ -335,7 +376,7 @@ export default function BankrLaunchPage() {
                                         <CLIButton
                                             variant="secondary"
                                             onClick={() => {
-                                                setFormData({ name: '', image: '', tweet: '', feeType: 'x', fee: '' });
+                                                setFormData({ name: '', image: '', tweet: '', launcherType: 'x', launcher: '', feeType: 'x', fee: '' });
                                                 setStep('form');
                                             }}
                                             fullWidth
