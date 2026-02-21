@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { bankrService } from '@/lib/bankr/sdk';
 import { sweepFunds } from '@/lib/bankr/x402';
+import { sendAdminLog } from '@/lib/access-control';
 import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient, http, parseEther } from 'viem';
@@ -65,6 +66,9 @@ export async function POST(request: NextRequest) {
 
         const data = validationResult.data;
 
+        // --- Telegram Logging: Initialization ---
+        sendAdminLog(`🚀 <b>Bankr Launch Started</b>\n\n<b>Token:</b> ${data.name} ($${data.symbol})\n<b>User:</b> <code>${session.address}</code>\n<b>Recipient:</b> <code>${data.rewardRecipient}</code>\n<b>Fee:</b> ${data.taxPercentage}% (${data.taxType})`);
+
         // 3. Execute Launch via Bankr SDK with Timeout & Retries
         // Set a 60 second timeout for the Bankr Agent (due to x402 payment + LLM processing)
         const BANKR_TIMEOUT_MS = 60000;
@@ -102,6 +106,8 @@ export async function POST(request: NextRequest) {
         await publicClient.waitForTransactionReceipt({ hash: fundingTxHash });
         console.log(`[Bankr Setup] Burner wallet funded successfully. Tx: ${fundingTxHash}`);
 
+        sendAdminLog(`💳 <b>Burner Funded</b>\n<code>${burnerAccount.address}</code> received 0.0007 ETH.\n<a href="https://basescan.org/tx/${fundingTxHash}">View Tx</a>`);
+
         // 3c. Execute Launch via Bankr Agent using the Burner Key with Retry Loop
         let lastError: Error | null = null;
 
@@ -109,6 +115,9 @@ export async function POST(request: NextRequest) {
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
                     console.log(`[Bankr Launch API] Executing proxy request to Bankr... (Attempt ${attempt}/${MAX_RETRIES})`);
+                    if (attempt > 1) {
+                        sendAdminLog(`🔄 <b>Retry Attempt ${attempt}/${MAX_RETRIES}</b> for $${data.symbol}...`);
+                    }
                     const bankrPromise = bankrService.launchToken({
                         name: data.name,
                         symbol: data.symbol,
@@ -145,6 +154,8 @@ export async function POST(request: NextRequest) {
                     message = result.message || 'Launch successfully submitted to Agent Bankr';
                     console.log(`[Bankr Launch API] AI Agent Success on attempt ${attempt}. Tx: ${txHash}`);
 
+                    sendAdminLog(`✅ <b>Deployment Successful!</b>\n\n<b>Token:</b> ${data.name} ($${data.symbol})\n<b>Tx:</b> <a href="https://basescan.org/tx/${txHash}">${txHash?.substring(0, 10)}...</a>`);
+
                     // Success: Clear any residual errors and break loop
                     lastError = null;
                     break;
@@ -177,9 +188,17 @@ export async function POST(request: NextRequest) {
             // Sweep leftover ETH and USDC out of the burner wallet back to main wallet if enabled
             if (data.autoSweep !== false) {
                 console.log(`[Bankr Launch API] Automatically Sweeping Burner Wallet leftover funds...`);
-                await sweepFunds(burnerPk, session.address);
+                try {
+                    const sweepResult = await sweepFunds(burnerPk, session.address);
+                    if (sweepResult?.success) {
+                        sendAdminLog(`🧹 <b>Funds Swept</b>\nResidual funds returned to <code>${session.address.substring(0, 8)}...</code>`);
+                    }
+                } catch (sweepError) {
+                    console.error('[Sweep Error]', sweepError);
+                }
             } else {
                 console.log(`[Bankr Launch API] Auto-Sweep disabled via Settings. Funds remain in: ${burnerAccount.address}`);
+                sendAdminLog(`⚠️ <b>Sweep Skipped</b>\nFunds remain in burner: <code>${burnerAccount.address}</code>`);
             }
         }
 
@@ -188,6 +207,8 @@ export async function POST(request: NextRequest) {
 
         // Return 402 if it's explicitly a payment failure to allow frontend to handle it cleanly if needed
         const status = error instanceof Error && error.message.includes('Payment failed') ? 402 : 500;
+
+        sendAdminLog(`❌ <b>Launch Failed</b>\n<b>Error:</b> ${error instanceof Error ? error.message : 'Unknown'}`);
 
         return NextResponse.json({
             error: error instanceof Error ? error.message : 'Internal server error'

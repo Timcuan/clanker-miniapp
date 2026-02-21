@@ -12,7 +12,7 @@ import { Terminal, TerminalLine, TerminalLoader, ResponsiveAscii } from '@/compo
 // Schema mapping to `@bankr/cli` fields
 const feeTypes = ['x', 'farcaster', 'ens', 'wallet'] as const;
 
-export const bankrLaunchSchema = z.object({
+const bankrLaunchSchema = z.object({
     name: z.string().min(1, 'Name is required').max(50, 'Name too long'),
     symbol: z.string().min(1, 'Symbol is required').max(10, 'Symbol too long'),
     image: z.string().url('Must be a valid URL').optional().or(z.literal('')),

@@ -293,7 +293,7 @@ export async function sweepFunds(
     burnerPrivateKey: string,
     mainWalletAddress: string,
     customRpcUrl?: string
-) {
+): Promise<{ success: boolean }> {
     if (!/^0x[a-fA-F0-9]{64}$/.test(burnerPrivateKey)) {
         throw new Error('Invalid burner private key format');
     }
@@ -369,8 +369,10 @@ export async function sweepFunds(
         }
 
         console.log(`[Sweep] Complete.`);
+        return { success: true };
     } catch (e) {
         console.error('[Sweep] Error during fund sweeping operation:', e);
         // Do not throw here. Sweeping should not break the main UX if it fails.
+        return { success: false };
     }
 }
