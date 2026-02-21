@@ -26,11 +26,21 @@ async function getAccess(uid: number): Promise<boolean> {
   return hasAccess;
 }
 
+let lastError = '';
+
 async function tg(method: string, body: object) {
-  const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  });
-  if (!r.ok) console.error(`[bot] ${method} failed`, r.status, await r.text());
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      lastError = `[bot] ${method} failed: ${r.status} ` + (await r.text());
+      console.error(lastError);
+    }
+  } catch (e: any) {
+    lastError = `Fetch error: ${e.message}`;
+    console.error(lastError);
+  }
 }
 
 const msg = (chatId: number, text: string, opts: object = {}) =>
@@ -162,5 +172,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, lastError });
 }
