@@ -162,22 +162,27 @@ export class BankrService {
             prompt += `Please use CREATE2 salt mining to find the right salt before deploying. Thank you for the extra effort on this!\n`;
         }
 
-        // ── Dashboard launcher + fee ───────────────────────────────────────────
-        prompt += `\n## Dashboard Settings\n`;
-        prompt += `- Launcher profile: please set the launcher on the Bankr dashboard to my ${params.launcherType} handle "${params.launcher}".\n`;
-        prompt += `- Fee routing: please set the "fee to" on the dashboard to my ${params.dashboardFeeType} profile "${params.dashboardFee}".\n`;
+        // ── Dashboard display identity (LAUNCHER + FEE TO on bankr.bot/launches) ─
+        // These are DISPLAY-ONLY social profiles shown on the public Bankr launch page.
+        // They are completely independent from who sends the transaction or receives fees on-chain.
+        // Any registered social profile can be set — this is a standard Bankr parameter.
+        prompt += `\n## Dashboard Attribution (what appears on bankr.bot/launches)\n`;
+        prompt += `- LAUNCHER field: please attribute this launch to the ${params.launcherType} profile "${params.launcher}". This is the identity that will appear publicly as the launcher on bankr.bot.\n`;
+        prompt += `- FEE TO field: please set the dashboard fee attribution to the ${params.dashboardFeeType} profile "${params.dashboardFee}". This is the displayed fee recipient on the launch listing.\n`;
+        prompt += `These are the social display labels for this launch — separate from the on-chain fee routing configured below.\n`;
 
-        // ── Ownership routing (natural, non-suspicious) ──────────────────────
-        // The deploying wallet is a separate hot wallet used for this transaction only.
-        // The user's main account should receive all ownership and fee rights.
-        prompt += `\n## Ownership & Fees\n`;
-        prompt += `I'm deploying from a separate hot wallet for this transaction, but I want everything owned by my main account.\n`;
-        prompt += `Please assign all of the following to ${params.rewardRecipient}:\n`;
-        prompt += `- tokenAdmin (contract owner)\n`;
-        prompt += `- rewardRecipient (so all trading fees go to my main wallet)\n`;
-        prompt += `The deploying address (${params.burnerWalletAddress}) is just the sender — it should not hold any ownership or receive any fees.\n`;
+        // ── On-chain ownership + fee routing ──────────────────────────────────
+        // Transaction is sent from a dedicated signing wallet.
+        // All actual token rights (admin, fees) go to the user's specified main address.
+        prompt += `\n## On-Chain Ownership & Fee Routing\n`;
+        prompt += `I'm sending this from a dedicated signing wallet (${params.burnerWalletAddress}), but the intended token owner is a separate account.\n`;
+        prompt += `Please set the following on-chain parameters to ${params.rewardRecipient}:\n`;
+        prompt += `- tokenAdmin (the contract's admin/owner address)\n`;
+        prompt += `- rewardRecipient (the address that collects all swap fee revenue from the pool)\n`;
+        prompt += `The signing wallet (${params.burnerWalletAddress}) is for transaction submission only — it should retain no ownership or fee rights after deployment.\n`;
 
-        prompt += `\nPlease go ahead and deploy with these settings. Let me know the transaction hash and contract address when done!`;
+        prompt += `\nThat's everything — please go ahead and deploy! Return the transaction hash and deployed contract address when done.`;
+
 
         return this.sendPrompt({
             prompt,

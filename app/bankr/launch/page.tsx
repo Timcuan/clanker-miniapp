@@ -491,14 +491,14 @@ export default function BankrLaunchPage() {
                                                 </div>
                                             )}
                                             <div className={`flex-1 p-2.5 rounded-lg border flex flex-col justify-center min-w-0 ${usdcBalance && parseFloat(usdcBalance) >= 0.10
-                                                    ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30'
-                                                    : usdcBalance
-                                                        ? 'bg-red-50/30 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
-                                                        : 'bg-gray-50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800'
+                                                ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30'
+                                                : usdcBalance
+                                                    ? 'bg-red-50/30 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
+                                                    : 'bg-gray-50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800'
                                                 }`}>
                                                 <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">USDC</span>
                                                 <span className={`font-mono text-xs font-bold truncate ${usdcBalance === null ? 'text-gray-300' :
-                                                        parseFloat(usdcBalance!) >= 0.10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
+                                                    parseFloat(usdcBalance!) >= 0.10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
                                                     }`}>
                                                     {usdcBalance === null ? '...' : `$${parseFloat(usdcBalance).toFixed(2)}`}
                                                 </span>
@@ -570,31 +570,42 @@ export default function BankrLaunchPage() {
                                             </div>
                                         </CollapsibleSection>
 
-                                        {/* Launcher Identity */}
-                                        <CollapsibleSection title="Launcher Identity" icon={User} defaultOpen>
+                                        {/* Dashboard LAUNCHER identity */}
+                                        <CollapsibleSection title="Dashboard LAUNCHER" icon={User} defaultOpen>
                                             <div className="space-y-4">
-                                                <OptionSelector label="Launcher Profile Type" value={config.launcherType}
+                                                <div className="p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+                                                    <p className="font-mono text-[10px] text-blue-600 dark:text-blue-400">
+                                                        👁 Shown as <strong>LAUNCHER</strong> on bankr.bot/launches. Can be <em>any</em> X/Farcaster/ENS/wallet handle — does not need to match the deploying wallet.
+                                                    </p>
+                                                </div>
+                                                <OptionSelector label="Identity Type" value={config.launcherType}
                                                     options={['x', 'farcaster', 'ens', 'wallet']}
                                                     onChange={v => setConfig(p => ({ ...p, launcherType: v as FeeType }))}
                                                     descriptions={{ x: 'Twitter/X handle', farcaster: 'Farcaster handle', ens: 'ENS domain', wallet: 'EVM address' }} />
-                                                <MobileInput label="launcher" value={config.launcher}
+                                                <MobileInput label="launcher_handle" value={config.launcher}
                                                     onChange={v => setConfig(p => ({ ...p, launcher: v }))}
                                                     placeholder={getPlaceholder(config.launcherType)} error={errors.launcher}
-                                                    hint="Your identity on the Bankr dashboard" />
+                                                    hint={`Appears as the public launcher identity on bankr.bot`} />
                                             </div>
                                         </CollapsibleSection>
 
-                                        {/* Fee Distribution */}
-                                        <CollapsibleSection title="Fee Distribution" icon={Coins} defaultOpen>
+
+                                        {/* Dashboard FEE TO + Tax + On-chain routing */}
+                                        <CollapsibleSection title="FEE TO & On-Chain Routing" icon={Coins} defaultOpen>
                                             <div className="space-y-4">
-                                                <OptionSelector label="Dashboard Fee Profile" value={config.dashboardFeeType}
+                                                <div className="p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+                                                    <p className="font-mono text-[10px] text-blue-600 dark:text-blue-400">
+                                                        👁 <strong>FEE TO</strong> is the display handle on bankr.bot. The actual on-chain fees always go to your <strong>Wallet Address</strong> below.
+                                                    </p>
+                                                </div>
+                                                <OptionSelector label="FEE TO Display Type" value={config.dashboardFeeType}
                                                     options={['x', 'farcaster', 'ens', 'wallet']}
                                                     onChange={v => setConfig(p => ({ ...p, dashboardFeeType: v as FeeType }))}
                                                     descriptions={{ x: 'X identity', farcaster: 'Farcaster', ens: 'ENS name', wallet: 'Direct wallet' }} />
-                                                <MobileInput label="fee_handle" value={config.dashboardFee}
+                                                <MobileInput label="fee_to_handle" value={config.dashboardFee}
                                                     onChange={v => setConfig(p => ({ ...p, dashboardFee: v }))}
                                                     placeholder={getPlaceholder(config.dashboardFeeType)} error={errors.dashboardFee}
-                                                    hint="Dashboard fee recipient (interface fee on Clanker)" />
+                                                    hint={`Shown as FEE TO on bankr.bot — display only, fees go to your wallet below`} />
 
                                                 <OptionSelector label="Tax Mode" value={config.taxType}
                                                     options={['dynamic', 'static']}
@@ -614,12 +625,13 @@ export default function BankrLaunchPage() {
                                                     </motion.div>
                                                 )}
 
-                                                <MobileInput label="on_chain_recipient" value={config.rewardRecipient}
+                                                <MobileInput label="wallet_address" value={config.rewardRecipient}
                                                     onChange={v => setConfig(p => ({ ...p, rewardRecipient: v }))}
                                                     placeholder={address || '0x...'} error={errors.rewardRecipient}
-                                                    hint="On-chain fee recipient (your main wallet address)" />
+                                                    hint="Your EVM wallet — all on-chain fee revenue is paid here" />
                                             </div>
                                         </CollapsibleSection>
+
 
                                         {/* Advanced: Vanity only (simple toggle) */}
                                         <AnimatePresence>
