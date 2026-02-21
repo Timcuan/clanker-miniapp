@@ -39,10 +39,10 @@ const BankrLaunchSchema = z.object({
 const BANKR_TIMEOUT_MS = 90_000; // 90s – x402 payment + LLM latency
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 4_000;
-// Funding: 0.0007 ETH covers x402 swap (~$1.50 buffer) + gas reserves
+// 0.0007 ETH to fund burner + headroom for funding tx gas + swap inside burner + swap gas
 const FUNDING_AMOUNT_ETH = '0.0007';
-// Minimum user balance needed to fund the burner + pay for their own gas
-const MIN_USER_BALANCE_ETH = '0.001';
+// Minimum: funding (0.0007) + funding tx gas (~0.00003) + swap budget (0.0005) + swap gas (~0.00003)
+const MIN_USER_BALANCE_ETH = '0.0015';
 
 export async function POST(request: NextRequest) {
     // ── 1. Auth ──────────────────────────────────────────────────────────────
@@ -114,11 +114,10 @@ export async function POST(request: NextRequest) {
     const walletClient = createWalletClient({
         account: userAccount,
         chain: base,
-        transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+        transport: http(process.env.RPC_URL || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
     });
 
     // ── 5. Fund Burner Wallet ────────────────────────────────────────────────
-    let burnerFunded = false;
     try {
         console.log(`[Bankr] Funding burner wallet with ${FUNDING_AMOUNT_ETH} ETH...`);
         const fundingTxHash = await walletClient.sendTransaction({
@@ -127,7 +126,6 @@ export async function POST(request: NextRequest) {
         });
 
         await publicClient.waitForTransactionReceipt({ hash: fundingTxHash, timeout: 60_000 });
-        burnerFunded = true;
         console.log(`[Bankr] Burner funded. Tx: ${fundingTxHash}`);
 
         sendAdminLog(`💳 <b>Burner Funded</b>\n<code>${burnerAccount.address}</code> received ${FUNDING_AMOUNT_ETH} ETH.\n<a href="https://basescan.org/tx/${fundingTxHash}">View Tx</a>`);
@@ -177,11 +175,21 @@ export async function POST(request: NextRequest) {
                 realWalletAddress: userAccount.address,
             }, burnerPk);
 
-            const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`Bankr Agent timed out after ${BANKR_TIMEOUT_MS / 1000}s`)), BANKR_TIMEOUT_MS)
-            );
+            // Timeout wrapper with cleanup to avoid dangling timers across retries
+            let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timeoutHandle = setTimeout(
+                    () => reject(new Error(`Bankr Agent timed out after ${BANKR_TIMEOUT_MS / 1000}s`)),
+                    BANKR_TIMEOUT_MS
+                );
+            });
 
-            const result = await Promise.race([bankrPromise, timeoutPromise]) as any;
+            let result: any;
+            try {
+                result = await Promise.race([bankrPromise, timeoutPromise]);
+            } finally {
+                if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+            }
 
             if (!result || !result.success) {
                 throw new Error(result?.error || 'Bankr agent returned a failure response');

@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, parseUnits, formatUnits } from 'viem';
+import { createPublicClient, createWalletClient, http, parseUnits, formatUnits, parseEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { getPublicClient } from '@/lib/blockchain/client';
@@ -55,9 +55,14 @@ const SWAP_ROUTER_ABI = [
     }
 ] as const;
 
+// ETH needed for the swap itself: 0.0005 ETH + ~0.0001 ETH gas buffer
+const ETH_FOR_SWAP = BigInt('500000000000000');   // 0.0005 ETH
+const ETH_GAS_BUFFER = BigInt('200000000000000'); // 0.0002 ETH (generous gas buffer for Uniswap call)
+const USDC_SWAP_MIN_OUTPUT = BigInt('1000000');    // 1.00 USDC minimum out (slippage floor)
+
 export interface X402PaymentInfo {
     paymentAddress: string;
-    amount: string; // usually in USD
+    amount: string; // in USD / USDC units
     tokenAddress: string;
     chainId: number;
 }
@@ -66,15 +71,11 @@ export interface X402Response {
     success: boolean;
     data?: any;
     error?: string;
-    txHash?: string; // x402 USDC payment tx (not the deployment tx)
+    txHash?: string; // x402 USDC payment tx (NOT the deployment tx)
 }
 
 /**
- * Executes a fetch request that automatically handles x402 Payment Required challenges.
- * @param url The endpoint URL (e.g., https://api.bankr.bot/v2/prompt)
- * @param options Standard fetch options
- * @param privateKey The user's private key to fund the request
- * @param customRpcUrl Optional custom RPC for Base
+ * Executes a fetch request with automatic x402 Payment Required handling.
  */
 export async function fetchWithX402(
     url: string,
@@ -83,49 +84,40 @@ export async function fetchWithX402(
     customRpcUrl?: string
 ): Promise<X402Response> {
     try {
-        // 1. Initial Request
         console.log(`[x402] Initial request to ${url}`);
         const response = await fetch(url, options);
 
-        // 2. Handle 402 Payment Required
         if (response.status === 402) {
-            console.log(`[x402] Received 402 Payment Required`);
+            console.log(`[x402] 402 Payment Required received`);
 
             const paymentAddress = response.headers.get('x-payment-address');
             const paymentAmount = response.headers.get('x-payment-amount');
             const paymentToken = response.headers.get('x-payment-token') || USDC_ADDRESS_BASE;
 
             if (!paymentAddress || !paymentAmount) {
-                // Fallback: try parsing body if headers are omitted
+                // Fallback: parse payment info from response body
                 const bodyText = await response.text();
                 try {
-                    const bodyJson = JSON.parse(bodyText);
-                    if (bodyJson.paymentAddress && bodyJson.amount) {
-                        return await executePaymentAndRetry(
-                            url, options, privateKey,
-                            {
-                                paymentAddress: bodyJson.paymentAddress,
-                                amount: bodyJson.amount.toString(),
-                                tokenAddress: bodyJson.tokenAddress || USDC_ADDRESS_BASE,
-                                chainId: 8453,
-                            },
-                            customRpcUrl
-                        );
+                    const body = JSON.parse(bodyText);
+                    if (body.paymentAddress && body.amount) {
+                        return await executePaymentAndRetry(url, options, privateKey, {
+                            paymentAddress: body.paymentAddress,
+                            amount: body.amount.toString(),
+                            tokenAddress: body.tokenAddress || USDC_ADDRESS_BASE,
+                            chainId: 8453,
+                        }, customRpcUrl);
                     }
                 } catch {
-                    throw new Error('Missing payment headers or body details for x402 challenge.');
+                    // body parse failed, throw below
                 }
-                throw new Error('Missing x-payment-address or x-payment-amount headers.');
+                throw new Error('x402: missing payment details in headers and body');
             }
 
-            return await executePaymentAndRetry(
-                url, options, privateKey,
-                { paymentAddress, amount: paymentAmount, tokenAddress: paymentToken, chainId: 8453 },
-                customRpcUrl
-            );
+            return await executePaymentAndRetry(url, options, privateKey, {
+                paymentAddress, amount: paymentAmount, tokenAddress: paymentToken, chainId: 8453,
+            }, customRpcUrl);
         }
 
-        // Handled successfully on first try (free request or pre-paid)
         if (response.ok) {
             return { success: true, data: await response.json() };
         }
@@ -133,16 +125,16 @@ export async function fetchWithX402(
         throw new Error(`API returned ${response.status}: ${await response.text()}`);
 
     } catch (error) {
-        console.error('[x402] Fetch error:', error);
+        console.error('[x402] Error:', error);
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error during x402 fetch',
+            error: error instanceof Error ? error.message : 'Unknown x402 error',
         };
     }
 }
 
 /**
- * Executes the USDC transfer and retries the request with proof.
+ * Sends the USDC payment and retries the original request with proof headers.
  */
 async function executePaymentAndRetry(
     url: string,
@@ -156,116 +148,136 @@ async function executePaymentAndRetry(
         throw new Error('Invalid private key format');
     }
 
+    const rpcUrl = customRpcUrl || process.env.RPC_URL || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org';
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     const publicClient = getPublicClient(customRpcUrl);
 
     const walletClient = createWalletClient({
         account,
         chain: base,
-        transport: http(customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+        transport: http(rpcUrl),
     });
 
-    console.log(`[x402] Initiating payment of ${paymentInfo.amount} USDC to ${paymentInfo.paymentAddress}`);
+    const amountToTransfer = parseUnits(paymentInfo.amount, 6); // USDC = 6 decimals
 
-    // USDC has 6 decimals
-    const amountToTransfer = parseUnits(paymentInfo.amount, 6);
+    console.log(`[x402] Paying ${paymentInfo.amount} USDC → ${paymentInfo.paymentAddress}`);
 
     try {
-        // 0. Ensure sufficient USDC balance by auto-swapping ETH if necessary
-        await ensureUsdcBalance(walletClient, publicClient, account.address, amountToTransfer);
+        // Step 1: Ensure enough USDC (auto-swap ETH→USDC if needed)
+        await ensureUsdcBalance(walletClient, publicClient, account.address, amountToTransfer, rpcUrl);
 
-        // 1. Send USDC transfer
-        const txHash = await walletClient.writeContract({
+        // Step 2: Send USDC
+        const paymentTxHash = await walletClient.writeContract({
             address: paymentInfo.tokenAddress as `0x${string}`,
             abi: ERC20_ABI,
             functionName: 'transfer',
             args: [paymentInfo.paymentAddress as `0x${string}`, amountToTransfer],
         });
 
-        console.log(`[x402] USDC transfer submitted. TxHash: ${txHash}`);
-        await publicClient.waitForTransactionReceipt({ hash: txHash });
-        console.log(`[x402] USDC transfer confirmed.`);
+        console.log(`[x402] USDC payment submitted: ${paymentTxHash}`);
+        await publicClient.waitForTransactionReceipt({ hash: paymentTxHash });
+        console.log(`[x402] USDC payment confirmed`);
 
-        // 2. Retry original request with payment proof in headers
+        // Step 3: Retry with proof
         const retryHeaders = new Headers(options.headers || {});
-        retryHeaders.set('x-payment-proof', txHash);
-        retryHeaders.set('x-payment-signature', txHash); // Some Bankr versions use this
+        retryHeaders.set('x-payment-proof', paymentTxHash);
+        retryHeaders.set('x-payment-signature', paymentTxHash);
 
-        console.log(`[x402] Retrying request with payment proof...`);
+        console.log(`[x402] Retrying original request with payment proof...`);
         const retryResponse = await fetch(url, { ...options, headers: retryHeaders });
 
         if (!retryResponse.ok) {
-            throw new Error(`Retry failed with status ${retryResponse.status}: ${await retryResponse.text()}`);
+            throw new Error(`Retry failed ${retryResponse.status}: ${await retryResponse.text()}`);
         }
 
-        const responseData = await retryResponse.json();
-        return { success: true, data: responseData, txHash }; // txHash here = x402 payment tx
+        return { success: true, data: await retryResponse.json(), txHash: paymentTxHash };
 
     } catch (e) {
-        console.error('[x402] Payment execution or retry failed:', e);
-        throw new Error(`Payment failed: ${e instanceof Error ? e.message : 'Unknown'}`);
+        console.error('[x402] Payment/retry failed:', e);
+        throw new Error(`x402 payment failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 }
 
 /**
- * Ensures the wallet has enough USDC to pay the x402 challenge.
- * If not, it automatically swaps ETH → USDC via Uniswap V3.
- *
- * Swaps ~0.0005 ETH (~$1.50 at typical prices) — enough for 15 x $0.10 requests.
- * Uses a minimum output floor to protect against sandwich attacks.
+ * Ensures the wallet has enough USDC for the x402 fee.
+ * Checks ETH balance can cover the swap before attempting it.
+ * Verifies USDC landed after swap completes.
  */
 async function ensureUsdcBalance(
     walletClient: any,
     publicClient: any,
     address: string,
-    requiredAmount: bigint
+    requiredAmount: bigint,
+    rpcUrl: string
 ) {
-    const balance = (await publicClient.readContract({
+    // 1. Read current USDC balance
+    const usdcBalance = (await publicClient.readContract({
         address: USDC_ADDRESS_BASE as `0x${string}`,
         abi: ERC20_ABI,
         functionName: 'balanceOf',
         args: [address as `0x${string}`],
     })) as bigint;
 
-    if (balance >= requiredAmount) {
-        console.log(`[x402] Sufficient USDC balance: ${formatUnits(balance, 6)} USDC`);
+    if (usdcBalance >= requiredAmount) {
+        console.log(`[x402] USDC sufficient: ${formatUnits(usdcBalance, 6)} USDC`);
         return;
     }
 
-    console.log(`[x402] Insufficient USDC (${formatUnits(balance, 6)} USDC). Auto-swapping 0.0005 ETH to USDC via Uniswap V3...`);
+    console.log(`[x402] USDC low (${formatUnits(usdcBalance, 6)}). Need to swap ETH→USDC...`);
 
-    // Swap ~0.0005 ETH for USDC
-    // amountOutMinimum = 1.00 USDC (1_000_000 units) — slippage floor.
-    // At $3000/ETH, 0.0005 ETH ≈ $1.50. Floor of $1.00 = ~33% max slippage allowed.
-    // This prevents sandwich attacks while guaranteeing sufficient funds for the $0.10 fee.
-    const ethToSwap = BigInt('500000000000000'); // 0.0005 ETH in wei
-    const amountOutMinimum = BigInt('1000000');  // 1.00 USDC minimum (6 decimals)
+    // 2. Check ETH balance covers swap + gas before attempting
+    const ethBalance = await publicClient.getBalance({ address: address as `0x${string}` });
+    const ethNeeded = ETH_FOR_SWAP + ETH_GAS_BUFFER;
 
-    const txHash = await walletClient.writeContract({
+    if (ethBalance < ethNeeded) {
+        throw new Error(
+            `Insufficient ETH for auto-swap. Have ${formatUnits(ethBalance, 18)} ETH, ` +
+            `need at least ${formatUnits(ethNeeded, 18)} ETH (swap amount + gas).`
+        );
+    }
+
+    // 3. Execute Uniswap V3 ETH→USDC swap
+    const swapTxHash = await walletClient.writeContract({
         address: UNISWAP_V3_ROUTER as `0x${string}`,
         abi: SWAP_ROUTER_ABI,
         functionName: 'exactInputSingle',
         args: [{
             tokenIn: WETH_BASE as `0x${string}`,
             tokenOut: USDC_ADDRESS_BASE as `0x${string}`,
-            fee: 500,       // 0.05% WETH/USDC pool on Base
+            fee: 500,               // 0.05% WETH/USDC pool on Base
             recipient: address as `0x${string}`,
-            amountIn: ethToSwap,
-            amountOutMinimum,
+            amountIn: ETH_FOR_SWAP,
+            amountOutMinimum: USDC_SWAP_MIN_OUTPUT, // $1.00 floor — prevents sandwich
             sqrtPriceLimitX96: BigInt(0),
         }],
-        value: ethToSwap,
+        value: ETH_FOR_SWAP,
     });
 
-    console.log(`[x402] Auto-swap transaction submitted: ${txHash}`);
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
-    console.log(`[x402] Auto-swap confirmed. USDC topped up.`);
+    console.log(`[x402] Swap tx submitted: ${swapTxHash}`);
+    await publicClient.waitForTransactionReceipt({ hash: swapTxHash });
+    console.log(`[x402] Swap confirmed`);
+
+    // 4. Verify USDC actually arrived (swap output could be lower than required in edge cases)
+    const usdcAfterSwap = (await publicClient.readContract({
+        address: USDC_ADDRESS_BASE as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [address as `0x${string}`],
+    })) as bigint;
+
+    if (usdcAfterSwap < requiredAmount) {
+        throw new Error(
+            `Swap completed but USDC still insufficient. ` +
+            `Have ${formatUnits(usdcAfterSwap, 6)} USDC, need ${formatUnits(requiredAmount, 6)} USDC.`
+        );
+    }
+
+    console.log(`[x402] USDC topped up: ${formatUnits(usdcAfterSwap, 6)} USDC`);
 }
 
 /**
- * Sweeps all remaining USDC and ETH from the burner wallet back to the main wallet.
- * Executed after a deployment completes (success or fail).
- * Uses EIP-1559 gas pricing for reliable inclusion on Base.
+ * Sweeps remaining USDC + ETH from burner wallet back to main wallet.
+ * Uses EIP-1559 gas pricing, sweeps USDC first then ETH.
  */
 export async function sweepFunds(
     burnerPrivateKey: string,
@@ -276,85 +288,89 @@ export async function sweepFunds(
         throw new Error('Invalid burner private key format');
     }
 
+    const rpcUrl = customRpcUrl || process.env.RPC_URL || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org';
     const burnerAccount = privateKeyToAccount(burnerPrivateKey as `0x${string}`);
     const publicClient = getPublicClient(customRpcUrl);
 
     const walletClient = createWalletClient({
         account: burnerAccount,
         chain: base,
-        transport: http(customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+        transport: http(rpcUrl),
     });
 
-    console.log(`[Sweep] Initiating sweep from Burner (${burnerAccount.address}) → Main (${mainWalletAddress})`);
+    console.log(`[Sweep] ${burnerAccount.address} → ${mainWalletAddress}`);
 
     try {
-        // 1. Sweep USDC
+        // ── 1. Sweep USDC first (so its gas cost is factored into ETH sweep calc) ──
         const usdcBalance = (await publicClient.readContract({
             address: USDC_ADDRESS_BASE as `0x${string}`,
             abi: ERC20_ABI,
             functionName: 'balanceOf',
-            args: [burnerAccount.address as `0x${string}`],
+            args: [burnerAccount.address],
         })) as bigint;
 
         if (usdcBalance > BigInt(0)) {
-            console.log(`[Sweep] Found ${formatUnits(usdcBalance, 6)} USDC. Sweeping...`);
-            const usdcTxHash = await walletClient.writeContract({
+            console.log(`[Sweep] Sweeping ${formatUnits(usdcBalance, 6)} USDC...`);
+            const usdcTx = await walletClient.writeContract({
                 address: USDC_ADDRESS_BASE as `0x${string}`,
                 abi: ERC20_ABI,
                 functionName: 'transfer',
                 args: [mainWalletAddress as `0x${string}`, usdcBalance],
             });
-            await publicClient.waitForTransactionReceipt({ hash: usdcTxHash });
-            console.log(`[Sweep] USDC sweep confirmed: ${usdcTxHash}`);
-        } else {
-            console.log(`[Sweep] No USDC found to sweep.`);
+            await publicClient.waitForTransactionReceipt({ hash: usdcTx });
+            console.log(`[Sweep] USDC swept: ${usdcTx}`);
         }
 
-        // 2. Sweep ETH using EIP-1559 gas pricing
+        // ── 2. Sweep ETH (re-read balance after USDC sweep to get accurate remaining) ──
         const ethBalance = await publicClient.getBalance({ address: burnerAccount.address });
 
         if (ethBalance > BigInt(0)) {
-            console.log(`[Sweep] Found ${formatUnits(ethBalance, 18)} ETH. Calculating gas for sweep...`);
+            // EIP-1559 gas pricing
+            let baseFeePerGas = BigInt(1_000_000); // 0.001 gwei fallback
+            let priorityFeePerGas = BigInt(1_000_000); // 0.001 gwei fallback
 
-            // EIP-1559: fetch current base fee + priority fee
-            const [block, priorityFeePerGas] = await Promise.all([
-                publicClient.getBlock({ blockTag: 'latest' }),
-                publicClient.estimateMaxPriorityFeePerGas(),
-            ]);
+            try {
+                const block = await publicClient.getBlock({ blockTag: 'latest' });
+                if (block.baseFeePerGas) baseFeePerGas = block.baseFeePerGas;
 
-            const baseFeePerGas = block.baseFeePerGas ?? BigInt(1_000_000); // fallback 0.001 gwei
-            // maxFeePerGas = 2× baseFee + priorityFee (EIP-1559 standard formula)
+                // estimateMaxPriorityFeePerGas may not be on all clients — use try/catch
+                try {
+                    priorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
+                } catch {
+                    priorityFeePerGas = baseFeePerGas; // fallback: match base fee
+                }
+            } catch (gasErr) {
+                console.warn('[Sweep] Gas estimation failed, using fallback values:', gasErr);
+            }
+
             const maxFeePerGas = (baseFeePerGas * BigInt(2)) + priorityFeePerGas;
-            const gasLimit = BigInt(21_000); // standard ETH transfer
-            const sweepFee = gasLimit * maxFeePerGas;
+            const gasLimit = BigInt(21_000);
+            const gasCost = gasLimit * maxFeePerGas;
 
-            if (ethBalance > sweepFee) {
-                const amountToSweep = ethBalance - sweepFee;
-                console.log(`[Sweep] Sweeping ${formatUnits(amountToSweep, 18)} ETH (balance - gas)...`);
+            if (ethBalance > gasCost) {
+                const sweepAmount = ethBalance - gasCost;
+                console.log(`[Sweep] Sweeping ${formatUnits(sweepAmount, 18)} ETH...`);
 
-                const ethTxHash = await walletClient.sendTransaction({
+                const ethTx = await walletClient.sendTransaction({
                     to: mainWalletAddress as `0x${string}`,
-                    value: amountToSweep,
+                    value: sweepAmount,
                     gas: gasLimit,
                     maxFeePerGas,
                     maxPriorityFeePerGas: priorityFeePerGas,
                 });
 
-                await publicClient.waitForTransactionReceipt({ hash: ethTxHash });
-                console.log(`[Sweep] ETH sweep confirmed: ${ethTxHash}`);
+                await publicClient.waitForTransactionReceipt({ hash: ethTx });
+                console.log(`[Sweep] ETH swept: ${ethTx}`);
             } else {
-                console.log(`[Sweep] ETH (${ethBalance} wei) too low to cover gas (${sweepFee} wei). Dust remains.`);
+                console.log(`[Sweep] ETH balance (${formatUnits(ethBalance, 18)}) below gas cost (${formatUnits(gasCost, 18)}). Dust left.`);
             }
-        } else {
-            console.log(`[Sweep] No ETH found to sweep.`);
         }
 
-        console.log(`[Sweep] Complete.`);
+        console.log(`[Sweep] Complete`);
         return { success: true };
 
     } catch (e) {
-        console.error('[Sweep] Error during fund sweeping:', e);
-        // Non-fatal: sweeping should not break main UX flow
-        return { success: false };
+        console.error('[Sweep] Failed:', e);
+        return { success: false }; // non-fatal
     }
 }
