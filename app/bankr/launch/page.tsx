@@ -71,7 +71,7 @@ export default function BankrLaunchPage() {
     const [resultData, setResultData] = useState<{ txHash?: string, message?: string, deployedViaFallback?: boolean } | null>(null);
 
     // Load Settings Preferences from Local Storage
-    useState(() => {
+    useEffect(() => {
         if (typeof window !== 'undefined') {
             try {
                 const saved = localStorage.getItem('clanker_prefs');
@@ -87,7 +87,7 @@ export default function BankrLaunchPage() {
                 console.error("Failed to load generic prefs on launch screen");
             }
         }
-    });
+    }, []);
 
     // Fee Type specific placeholders
     const getFeePlaceholder = (type: BankrLaunchFormParams['dashboardFeeType']) => {
