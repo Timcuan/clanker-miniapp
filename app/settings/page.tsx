@@ -44,6 +44,8 @@ export default function SettingsPage() {
   const [autoFill, setAutoFill] = useState(true);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [cloudSync, setCloudSync] = useState(false);
+  const [autoSweep, setAutoSweep] = useState(true);
+  const [customGasLimit, setCustomGasLimit] = useState(false);
   const [rpcInput, setRpcInput] = useState('');
   const [isPrefsLoaded, setIsPrefsLoaded] = useState(false);
 
@@ -76,6 +78,8 @@ export default function SettingsPage() {
         if (parsed.autoFill !== undefined) setAutoFill(parsed.autoFill);
         if (parsed.advancedMode !== undefined) setAdvancedMode(parsed.advancedMode);
         if (parsed.cloudSync !== undefined) setCloudSync(parsed.cloudSync);
+        if (parsed.autoSweep !== undefined) setAutoSweep(parsed.autoSweep);
+        if (parsed.customGasLimit !== undefined) setCustomGasLimit(parsed.customGasLimit);
       } catch (e) {
         console.error('Failed to load prefs');
       }
@@ -93,6 +97,8 @@ export default function SettingsPage() {
               if (parsed.autoFill !== undefined) setAutoFill(parsed.autoFill);
               if (parsed.advancedMode !== undefined) setAdvancedMode(parsed.advancedMode);
               if (parsed.cloudSync !== undefined) setCloudSync(parsed.cloudSync);
+              if (parsed.autoSweep !== undefined) setAutoSweep(parsed.autoSweep);
+              if (parsed.customGasLimit !== undefined) setCustomGasLimit(parsed.customGasLimit);
             } catch (e) { }
           }
         });
@@ -106,7 +112,7 @@ export default function SettingsPage() {
   // Save preferences
   useEffect(() => {
     if (isPrefsLoaded) {
-      const prefs = { autoFill, advancedMode, cloudSync };
+      const prefs = { autoFill, advancedMode, cloudSync, autoSweep, customGasLimit };
       localStorage.setItem('clanker_prefs', JSON.stringify(prefs));
 
       try {
@@ -444,6 +450,38 @@ export default function SettingsPage() {
                 className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${cloudSync ? 'bg-sky-500' : 'bg-gray-200 dark:bg-gray-800'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${cloudSync ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Burner Config */}
+        <section>
+          <h2 className="font-mono text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Burner Wallets & Transfers</h2>
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800 shadow-sm">
+            <div className="p-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200">Auto-Sweep (0 Wei Dust)</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[250px]">Automatically refund all leftover USDC and ETH from the Burner Proxy back to your main wallet after every launch attempt.</p>
+              </div>
+              <button
+                onClick={() => setAutoSweep(!autoSweep)}
+                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${autoSweep ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${autoSweep ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+
+            <div className="p-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200">Override Gas Limits</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[250px]">Allow the AI Agent to dynamically increase Max Priority Fees during network congestion.</p>
+              </div>
+              <button
+                onClick={() => setCustomGasLimit(!customGasLimit)}
+                className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${customGasLimit ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${customGasLimit ? 'left-5' : 'left-1'}`} />
               </button>
             </div>
           </div>

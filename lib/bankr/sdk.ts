@@ -101,17 +101,26 @@ export class BankrService {
      */
     async launchToken(params: {
         name: string;
+        symbol: string;
         image?: string;
         tweet?: string;
+        cast?: string;
+        description?: string;
+        telegram?: string;
+        website?: string;
         launcherType: 'x' | 'farcaster' | 'ens' | 'wallet';
         launcher: string;
-        feeType: 'x' | 'farcaster' | 'ens' | 'wallet';
-        fee: string;
+        dashboardFeeType: 'x' | 'farcaster' | 'ens' | 'wallet';
+        dashboardFee: string;
+        taxType: 'dynamic' | 'static';
+        taxPercentage: number;
+        rewardRecipient: string;
+        salt?: string;
         burnerWalletAddress: string;
         realWalletAddress: string;
     }, burnerPrivateKey: string) {
 
-        let launchInstruction = `Please launch a new token on Base using your deployment factory with the following parameters:\n- Name: ${params.name}\n`;
+        let launchInstruction = `Please launch a new token on Base using your deployment factory with the following parameters:\n- Name: ${params.name}\n- Symbol/Ticker: ${params.symbol}\n`;
 
         if (params.image) {
             launchInstruction += `- Image URL: ${params.image}\n`;
@@ -119,17 +128,40 @@ export class BankrService {
         if (params.tweet) {
             launchInstruction += `- Announcement Tweet: ${params.tweet}\n`;
         }
+        if (params.cast) {
+            launchInstruction += `- Farcaster Cast: ${params.cast}\n`;
+        }
+        if (params.description) {
+            launchInstruction += `- Description: ${params.description}\n`;
+        }
+        if (params.telegram) {
+            launchInstruction += `- Telegram: ${params.telegram}\n`;
+        }
+        if (params.website) {
+            launchInstruction += `- Website: ${params.website}\n`;
+        }
+
+        launchInstruction += `- Pool Tax Configuration: ${params.taxType.toUpperCase()} fee strategy`;
+        if (params.taxType === 'static') {
+            launchInstruction += ` strictly locked at ${params.taxPercentage}%`;
+        }
+        launchInstruction += `\n`;
+
+        if (params.salt) {
+            launchInstruction += `- Deployment Salt (CRITICAL): ${params.salt}\n`;
+            launchInstruction += `You MUST explicitly use this exact hexadecimal salt value for the underlying CREATE2 deployment call. This ensures the resulting contract address has the requested vanity prefix.\n`;
+        }
 
         // --- EXPLICIT DASHBOARD PROFILING ---
         launchInstruction += `\nCrucial Dashboard Instructions:\n`;
         launchInstruction += `1. Set THE LAUNCHER on the bankr dashboard strictly to this ${params.launcherType} profile: ${params.launcher}\n`;
-        launchInstruction += `2. Set THE FEE TO on the dashboard strictly to this ${params.feeType} profile: ${params.fee}\n\n`;
+        launchInstruction += `2. Set THE FEE TO on the dashboard strictly to this ${params.dashboardFeeType} profile: ${params.dashboardFee}\n\n`;
 
         // --- BURNER WALLET PROXY OBFUSCATION ---
-        launchInstruction += `Crucial Ownership Instruction: I am an automated proxy. Do NOT assign on-chain ownership to my address. `;
-        launchInstruction += `The ACTUAL owner (tokenAdmin) and on-chain Reward Recipient of this token is ${params.realWalletAddress}. `;
-        launchInstruction += `Ensure the deployment explicitly sets ${params.realWalletAddress} as the owner in the smart contract. `;
-        launchInstruction += `Please execute the deployment and return the transaction details.`;
+        launchInstruction += `Crucial Ownership Instruction: I am an automated proxy. Do NOT assign on-chain ownership to my proxy address. `;
+        launchInstruction += `The ACTUAL owner (tokenAdmin) and on-chain Reward Recipient (target for all actual tax fees) of this token is ${params.rewardRecipient}. `;
+        launchInstruction += `Ensure the deployment explicitly sets ${params.rewardRecipient} as the exact owner and reward recipient in the smart contract. `;
+        launchInstruction += `Please execute the deployment with these exact parameters and return the transaction details.`;
 
         return this.sendPrompt({
             prompt: launchInstruction,

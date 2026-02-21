@@ -3,8 +3,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { bankrService } from '@/lib/bankr/sdk';
-import { clankerService } from '@/lib/clanker/sdk';
-import { MevModuleType } from '@/lib/clanker/constants';
+import { sweepFunds } from '@/lib/bankr/x402';
 import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient, http, parseEther } from 'viem';
@@ -16,12 +15,23 @@ const feeTypes = ['x', 'farcaster', 'ens', 'wallet'] as const;
 
 const BankrLaunchSchema = z.object({
     name: z.string().min(1).max(50),
+    symbol: z.string().min(1).max(10),
     image: z.string().url().optional(),
     tweet: z.string().url().optional(),
+    cast: z.string().url().optional().or(z.literal('')),
     launcherType: z.enum(feeTypes),
     launcher: z.string().min(1),
-    feeType: z.enum(feeTypes),
-    fee: z.string().min(1),
+    dashboardFeeType: z.enum(feeTypes),
+    dashboardFee: z.string().min(1),
+    taxType: z.enum(['dynamic', 'static']),
+    taxPercentage: z.number().min(0).max(90),
+    rewardRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/i),
+    salt: z.string().optional(),
+    description: z.string().optional(),
+    telegram: z.string().url().optional().or(z.literal('')),
+    website: z.string().url().optional().or(z.literal('')),
+    autoSweep: z.boolean().optional(),
+    customGasLimit: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -55,125 +65,123 @@ export async function POST(request: NextRequest) {
 
         const data = validationResult.data;
 
-        // 3. Execute Launch via Bankr SDK with Timeout
-        // Set a 20 second timeout for the Bankr Agent (due to x402 payment + LLM processing)
-        const BANKR_TIMEOUT_MS = 20000;
+        // 3. Execute Launch via Bankr SDK with Timeout & Retries
+        // Set a 60 second timeout for the Bankr Agent (due to x402 payment + LLM processing)
+        const BANKR_TIMEOUT_MS = 60000;
+        const MAX_RETRIES = 3;
 
         let txHash: string | undefined;
-        let message: string;
-        let deployedViaFallback = false;
+        let message: string = '';
+        const deployedViaFallback = false;
+
+        console.log(`[Bankr Launch API] Setting up Burner Wallet Proxy for ${data.name}...`);
+
+        // 3a. Generate Burner Wallet
+        const burnerPk = generatePrivateKey();
+        const burnerAccount = privateKeyToAccount(burnerPk);
+
+        console.log(`[Bankr Setup] Created Burner Wallet: ${burnerAccount.address}`);
+
+        // 3b. Fund Burner Wallet (0.0007 ETH) from User's Wallet
+        const fundingAmount = parseEther('0.0007');
+        const userAccount = privateKeyToAccount(session.privateKey as `0x${string}`);
+
+        const walletClient = createWalletClient({
+            account: userAccount,
+            chain: base,
+            transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+        });
+        const publicClient = getPublicClient();
+
+        console.log(`[Bankr Setup] Funding burner wallet...`);
+        const fundingTxHash = await walletClient.sendTransaction({
+            to: burnerAccount.address,
+            value: fundingAmount,
+        });
+
+        await publicClient.waitForTransactionReceipt({ hash: fundingTxHash });
+        console.log(`[Bankr Setup] Burner wallet funded successfully. Tx: ${fundingTxHash}`);
+
+        // 3c. Execute Launch via Bankr Agent using the Burner Key with Retry Loop
+        let lastError: Error | null = null;
 
         try {
-            console.log(`[Bankr Launch API] Setting up Burner Wallet Proxy for ${data.name}...`);
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    console.log(`[Bankr Launch API] Executing proxy request to Bankr... (Attempt ${attempt}/${MAX_RETRIES})`);
+                    const bankrPromise = bankrService.launchToken({
+                        name: data.name,
+                        symbol: data.symbol,
+                        image: data.image,
+                        tweet: data.tweet,
+                        cast: data.cast,
+                        description: data.description,
+                        telegram: data.telegram,
+                        website: data.website,
+                        launcherType: data.launcherType,
+                        launcher: data.launcher,
+                        dashboardFeeType: data.dashboardFeeType,
+                        dashboardFee: data.dashboardFee,
+                        taxType: data.taxType,
+                        taxPercentage: data.taxPercentage,
+                        rewardRecipient: data.rewardRecipient,
+                        salt: data.salt,
+                        burnerWalletAddress: burnerAccount.address,
+                        realWalletAddress: session.address
+                    }, burnerPk);
 
-            // 3a. Generate Burner Wallet
-            const burnerPk = generatePrivateKey();
-            const burnerAccount = privateKeyToAccount(burnerPk);
+                    const timeoutPromise = new Promise<{ success: false, error: string }>((_, reject) =>
+                        setTimeout(() => reject(new Error(`Bankr Agent Timeout after ${BANKR_TIMEOUT_MS}ms`)), BANKR_TIMEOUT_MS)
+                    );
 
-            console.log(`[Bankr Setup] Created Burner Wallet: ${burnerAccount.address}`);
+                    const result = await Promise.race([bankrPromise, timeoutPromise]) as any;
 
-            // 3b. Fund Burner Wallet (0.0007 ETH) from User's Wallet
-            const fundingAmount = parseEther('0.0007');
-            const userAccount = privateKeyToAccount(session.privateKey as `0x${string}`);
+                    if (!result.success) {
+                        throw new Error(result.error || 'Bankr launch failed to execute');
+                    }
 
-            const walletClient = createWalletClient({
-                account: userAccount,
-                chain: base,
-                transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
-            });
-            const publicClient = getPublicClient();
+                    const txHashMatch = result.error ? result.error.match(/Payment Tx: (0x[a-fA-F0-9]+)/) : null;
+                    txHash = txHashMatch ? txHashMatch[1] : (result.txData?.txHash || undefined);
+                    message = result.message || 'Launch successfully submitted to Agent Bankr';
+                    console.log(`[Bankr Launch API] AI Agent Success on attempt ${attempt}. Tx: ${txHash}`);
 
-            console.log(`[Bankr Setup] Funding burner wallet...`);
-            const fundingTxHash = await walletClient.sendTransaction({
-                to: burnerAccount.address,
-                value: fundingAmount,
-            });
+                    // Success: Clear any residual errors and break loop
+                    lastError = null;
+                    break;
 
-            await publicClient.waitForTransactionReceipt({ hash: fundingTxHash });
-            console.log(`[Bankr Setup] Burner wallet funded successfully. Tx: ${fundingTxHash}`);
+                } catch (bankrError) {
+                    console.warn(`[Bankr Launch API] Agent Failed/Timed Out on attempt ${attempt}: ${bankrError}`);
+                    lastError = bankrError instanceof Error ? bankrError : new Error(String(bankrError));
 
-            // 3c. Execute Launch via Bankr Agent using the Burner Key
-            console.log(`[Bankr Launch API] Executing proxy request to Bankr...`);
-            const bankrPromise = bankrService.launchToken({
-                name: data.name,
-                image: data.image,
-                tweet: data.tweet,
-                launcherType: data.launcherType,
-                launcher: data.launcher,
-                feeType: data.feeType,
-                fee: data.fee,
-                burnerWalletAddress: burnerAccount.address,
-                realWalletAddress: session.address
-            }, burnerPk);
-
-            const timeoutPromise = new Promise<{ success: false, error: string }>((_, reject) =>
-                setTimeout(() => reject(new Error('Bankr Agent Timeout')), BANKR_TIMEOUT_MS)
-            );
-
-            const result = await Promise.race([bankrPromise, timeoutPromise]) as any;
-
-            if (!result.success) {
-                throw new Error(result.error || 'Bankr launch failed to execute');
+                    if (attempt < MAX_RETRIES) {
+                        // Small delay before retrying
+                        console.log(`[Bankr Launch API] Waiting 3s before retry...`);
+                        await new Promise(r => setTimeout(r, 3000));
+                    }
+                }
             }
 
-            const txHashMatch = result.error ? result.error.match(/Payment Tx: (0x[a-fA-F0-9]+)/) : null;
-            txHash = txHashMatch ? txHashMatch[1] : (result.txData?.txHash || undefined);
-            message = result.message || 'Launch successfully submitted to Agent Bankr';
-            console.log(`[Bankr Launch API] AI Agent Success. Tx: ${txHash}`);
-
-        } catch (bankrError) {
-            console.warn(`[Bankr Launch API] Agent Failed/Timed Out (${bankrError}). Falling back to Native Clanker...`);
-
-            // --- SMART FALLBACK TO NATIVE CLANKER CONTROLS ---
-            deployedViaFallback = true;
-
-            const isWalletRegex = /^0x[a-fA-F0-9]{40}$/i;
-
-            // Prevent assigning tokenAdmin to a Twitter handle, which breaks the Clanker Smart Contract Native Call
-            const fallbackTokenAdmin = (data.launcherType === 'wallet' && isWalletRegex.test(data.launcher))
-                ? data.launcher
-                : session.address;
-
-            // Attempt to map the fee recipient if it's a valid wallet, otherwise fallback to the user's address
-            const fallbackFeeRecipient = (data.feeType === 'wallet' && isWalletRegex.test(data.fee))
-                ? data.fee
-                : session.address;
-
-            const fallbackResult = await clankerService.deployToken(session.privateKey, {
-                name: data.name,
-                symbol: data.name.substring(0, 5).toUpperCase(), // Generate short symbol
-                image: data.image || '',
-                description: `Created via UMKM Terminal (Fallback Mode)`,
-                socialMediaUrls: data.tweet ? [{ platform: 'x', url: data.tweet }] : [],
-                tokenAdmin: fallbackTokenAdmin,
-                rewardRecipient: fallbackFeeRecipient,
-            }, {
-                feeType: 'static',
-                poolPositionType: 'Standard',
-                mevModuleType: MevModuleType.None,
-                blockDelay: 0,
-                creatorReward: 0,
-                devBuyEth: 0,
-                platform: 'telegram',
-                telegramUserId: session.telegramUserId,
-            });
-
-            if (!fallbackResult.success) {
-                throw new Error(`Fallback Native Deployment also failed: ${fallbackResult.error}`);
+            if (lastError) {
+                console.error(`[Bankr Launch API] All ${MAX_RETRIES} attempts failed. Giving up.`);
+                throw lastError;
             }
 
-            txHash = fallbackResult.txHash;
-            message = 'Agent Bankr was unreachable. The token was securely launched via Native Clanker Smart Contracts on-chain.';
-            console.log(`[Bankr Launch API] Native Clanker Fallback Success. Tx: ${txHash}`);
+            // 4. Return Success
+            return NextResponse.json({
+                success: true,
+                message,
+                txHash,
+                deployedViaFallback,
+            });
+        } finally {
+            // Sweep leftover ETH and USDC out of the burner wallet back to main wallet if enabled
+            if (data.autoSweep !== false) {
+                console.log(`[Bankr Launch API] Automatically Sweeping Burner Wallet leftover funds...`);
+                await sweepFunds(burnerPk, session.address);
+            } else {
+                console.log(`[Bankr Launch API] Auto-Sweep disabled via Settings. Funds remain in: ${burnerAccount.address}`);
+            }
         }
-
-        // 4. Return Success
-        return NextResponse.json({
-            success: true,
-            message,
-            txHash,
-            deployedViaFallback,
-        });
 
     } catch (error) {
         console.error('[Bankr Launch API] error:', error);

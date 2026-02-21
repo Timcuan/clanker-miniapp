@@ -500,26 +500,7 @@ export default function HomePage() {
                               </CLICard>
                             </motion.div>
 
-                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
-                              <CLICard hoverable onClick={() => router.push('/history')} className="group overflow-hidden relative">
-                                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/0 to-emerald-500/0 group-hover:via-emerald-500/5 transition-all duration-500" />
-                                <div className="flex items-center gap-3 relative z-10">
-                                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-300">
-                                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                                  </div>
-                                  <div className="flex-1 text-left min-w-0">
-                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-emerald-500 transition-colors">History</h3>
-                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">View past deployments</p>
-                                  </div>
-                                  <motion.div
-                                    whileHover={{ x: 5 }}
-                                    className="flex-shrink-0"
-                                  >
-                                    <ArrowRight className="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-emerald-500 transition-colors" />
-                                  </motion.div>
-                                </div>
-                              </CLICard>
-                            </motion.div>
+
 
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
                               <CLICard hoverable onClick={() => router.push('/settings')} className="group overflow-hidden relative">

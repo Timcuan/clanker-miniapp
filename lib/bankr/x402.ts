@@ -284,3 +284,93 @@ async function ensureUsdcBalance(
 
     console.log(`[x402] Auto-swap confirmed. USDC topped up.`);
 }
+
+/**
+ * Sweeps all remaining USDC and ETH from the burner wallet back to the main wallet.
+ * To be executed after a deployment completes (success or fail).
+ */
+export async function sweepFunds(
+    burnerPrivateKey: string,
+    mainWalletAddress: string,
+    customRpcUrl?: string
+) {
+    if (!/^0x[a-fA-F0-9]{64}$/.test(burnerPrivateKey)) {
+        throw new Error('Invalid burner private key format');
+    }
+
+    const burnerAccount = privateKeyToAccount(burnerPrivateKey as `0x${string}`);
+    const publicClient = getPublicClient(customRpcUrl);
+
+    const walletClient = createWalletClient({
+        account: burnerAccount,
+        chain: base,
+        transport: http(customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+    });
+
+    console.log(`[Sweep] Initiating sweep from Burner (${burnerAccount.address}) to Main (${mainWalletAddress})`);
+
+    try {
+        // 1. Sweep USDC
+        const usdcBalance = await publicClient.readContract({
+            address: USDC_ADDRESS_BASE as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [burnerAccount.address as `0x${string}`],
+        });
+
+        if (usdcBalance > BigInt(0)) {
+            console.log(`[Sweep] Found ${usdcBalance.toString()} USDC. Sweeping...`);
+            const usdcTxHash = await walletClient.writeContract({
+                address: USDC_ADDRESS_BASE as `0x${string}`,
+                abi: ERC20_ABI,
+                functionName: 'transfer',
+                args: [mainWalletAddress as `0x${string}`, usdcBalance],
+            });
+            await publicClient.waitForTransactionReceipt({ hash: usdcTxHash });
+            console.log(`[Sweep] USDC sweep confirmed: ${usdcTxHash}`);
+        } else {
+            console.log(`[Sweep] No USDC found to sweep.`);
+        }
+
+        // 2. Sweep ETH
+        const ethBalance = await publicClient.getBalance({ address: burnerAccount.address });
+
+        if (ethBalance > BigInt(0)) {
+            console.log(`[Sweep] Found ${ethBalance.toString()} wei. Calculating gas to rescue...`);
+
+            // Estimate Gas for standard ETH transfer (usually 21000, but let's be safe)
+            const gasEstimate = await publicClient.estimateGas({
+                account: burnerAccount,
+                to: mainWalletAddress as `0x${string}`,
+                value: BigInt(1), // dummy value just to estimate basic transfer
+            });
+
+            const gasPrice = await publicClient.getGasPrice();
+            const sweepFee = gasEstimate * gasPrice;
+
+            if (ethBalance > sweepFee) {
+                const amountToSweep = ethBalance - sweepFee;
+                console.log(`[Sweep] Sweeping ${amountToSweep.toString()} wei (Total - Gas)...`);
+
+                const ethTxHash = await walletClient.sendTransaction({
+                    to: mainWalletAddress as `0x${string}`,
+                    value: amountToSweep,
+                    gas: gasEstimate,
+                    maxFeePerGas: gasPrice,
+                });
+
+                await publicClient.waitForTransactionReceipt({ hash: ethTxHash });
+                console.log(`[Sweep] ETH sweep confirmed: ${ethTxHash}`);
+            } else {
+                console.log(`[Sweep] ETH balance (${ethBalance.toString()} wei) is too low to cover sweep gas (${sweepFee.toString()} wei). Dust remains.`);
+            }
+        } else {
+            console.log(`[Sweep] No ETH found to sweep.`);
+        }
+
+        console.log(`[Sweep] Complete.`);
+    } catch (e) {
+        console.error('[Sweep] Error during fund sweeping operation:', e);
+        // Do not throw here. Sweeping should not break the main UX if it fails.
+    }
+}
