@@ -1,7 +1,12 @@
 import { createPublicClient, http, formatEther } from 'viem';
 import { base } from 'viem/chains';
 
-const DEFAULT_RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org';
+// Prefer server-side secret (RPC_URL), fall back to public var, then Base public node
+const DEFAULT_RPC_URL =
+  process.env.RPC_URL ||
+  process.env.NEXT_PUBLIC_RPC_URL ||
+  'https://mainnet.base.org';
+
 
 /**
  * Creates a Viem public client for the Base network.
