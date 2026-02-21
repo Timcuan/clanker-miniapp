@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAdminUser, grantAccess, revokeAccess, verifyAccess, sendAdminLog } from '@/lib/access-control';
 import { initDatabase, findUserByTelegramId, createUser, updateUser, getUserStats } from '@/lib/db/turso';
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
+function getEnv(key: string, fallback = '') {
+  return process.env[key] || fallback;
+}
+
+const APP_URL = getEnv('NEXT_PUBLIC_APP_URL', 'https://clanker-terminal.netlify.app');
 const APP_VERSION = '2.2.0';
 type BtnStyle = 'default' | 'primary' | 'secondary' | 'danger' | 'success';
 
@@ -30,6 +33,7 @@ let lastError = '';
 
 async function tg(method: string, body: object) {
   try {
+    const BOT_TOKEN = getEnv('TELEGRAM_BOT_TOKEN');
     const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
@@ -52,7 +56,8 @@ const cb = (id: string, text: string, alert = false) =>
 const kb = (rows: Btn[][]) => ({ inline_keyboard: rows });
 
 export async function POST(req: NextRequest) {
-  if (!BOT_TOKEN) return NextResponse.json({ ok: true });
+  const BOT_TOKEN = getEnv('TELEGRAM_BOT_TOKEN');
+  if (!BOT_TOKEN) return NextResponse.json({ ok: true, lastError: 'No BOT_TOKEN resolved' });
 
   let update: TgUpdate;
   try { update = await req.json(); } catch { return NextResponse.json({ ok: true }); }
@@ -65,7 +70,7 @@ export async function POST(req: NextRequest) {
   const chatId = update.message?.chat.id ?? update.callback_query?.message?.chat.id ?? 0;
 
   // Rate limit
-  if (Date.now() - (rate.get(uid) ?? 0) < 800) return NextResponse.json({ ok: true });
+  if (Date.now() - (rate.get(uid) ?? 0) < 800) return NextResponse.json({ ok: true, lastError: 'rate limit' });
   rate.set(uid, Date.now());
 
   // ── Messages ──────────────────────────────────────────────────────────────
@@ -115,7 +120,7 @@ export async function POST(req: NextRequest) {
           }
         );
       }
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, lastError });
     }
 
     if (text === '/id') {
