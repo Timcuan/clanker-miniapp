@@ -409,7 +409,9 @@ export default function SettingsPage() {
 
         {/* General Preferences */}
         <section>
-          <h2 className="font-mono text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">General Settings</h2>
+          <h2 className="font-mono text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Settings className="w-3.5 h-3.5" /> General Preferences
+          </h2>
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
             <div className="p-4 flex items-center justify-between">
               <div>
@@ -457,7 +459,9 @@ export default function SettingsPage() {
 
         {/* Burner Config */}
         <section>
-          <h2 className="font-mono text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Burner Wallets & Transfers</h2>
+          <h2 className="font-mono text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5" /> Burner Proxy & Transfers
+          </h2>
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800 shadow-sm">
             <div className="p-4 flex items-center justify-between">
               <div>
@@ -489,7 +493,9 @@ export default function SettingsPage() {
 
         {/* Network Preferences */}
         <section>
-          <h2 className="font-mono text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Network Integration</h2>
+          <h2 className="font-mono text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Network & RPC
+          </h2>
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3 shadow-sm">
             <div>
               <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">Custom Base RPC URL</h3>
