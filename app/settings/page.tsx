@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Save, Plus, Trash2, Key, CheckCircle2, Shield, AlertTriangle, Eye, EyeOff, Copy, Wallet } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Key, CheckCircle2, Shield, AlertTriangle, Eye, EyeOff, Copy, Wallet, Settings, Zap } from 'lucide-react';
 import ClankerLogo from '@/components/ui/ClankerLogo';
 import { useTelegramContext } from '@/components/layout/TelegramProvider';
 // import { useWallet } from '@/contexts/WalletContext'; // We will manage local wallets here mostly
