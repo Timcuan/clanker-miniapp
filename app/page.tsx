@@ -8,7 +8,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { Terminal, TerminalLine, TerminalLoader, ResponsiveAscii } from '@/components/ui/Terminal';
 import { MatrixRain } from '@/components/ui/GlitchText';
 import { CLIButton, CLICard, CLIInput, StatusBadge } from '@/components/ui/CLIButton';
-import { Key, Zap, Shield, ArrowRight, LogOut, Settings, Info, X, Check, Copy } from 'lucide-react';
+import { Key, Zap, Shield, ArrowRight, LogOut, Settings, Info, X, Check, Copy, Rocket } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import ClankerLogo from '@/components/ui/ClankerLogo';
 import AboutSection from '@/components/ui/AboutSection';
@@ -168,8 +168,12 @@ export default function HomePage() {
     setPrivateKey('');
   };
 
-  const handleDeploy = () => {
+  const handleClankerDeploy = () => {
     router.push('/deploy');
+  };
+
+  const handleBankrDeploy = () => {
+    router.push('/bankr/launch');
   };
 
   // Helper to format balance with USD
@@ -480,30 +484,45 @@ export default function HomePage() {
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 sm:mt-4">
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.3 }}>
-                              <CLICard hoverable onClick={handleDeploy} className="h-full group overflow-hidden relative">
-                                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 group-hover:via-blue-500/5 transition-all duration-500" />
+                              <CLICard hoverable onClick={handleBankrDeploy} className="h-full group overflow-hidden relative border-orange-500/20 dark:border-orange-500/20">
+                                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 via-orange-500/0 to-orange-500/0 group-hover:via-orange-500/5 transition-all duration-500" />
                                 <div className="flex items-center sm:flex-col sm:items-start gap-3 relative z-10">
-                                  <div className="w-10 h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
-                                    <Zap className="w-5 h-5 text-white" />
+                                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform duration-300">
+                                    <Rocket className="w-5 h-5 text-white" />
                                   </div>
                                   <div className="flex-1 text-left min-w-0">
-                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-[#0052FF] transition-colors">Deploy Token</h3>
-                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Launch on Base</p>
+                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-orange-500 transition-colors">Bankr Launch</h3>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">AI-Optimized Engine</p>
                                   </div>
                                 </div>
                               </CLICard>
                             </motion.div>
 
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
-                              <CLICard hoverable onClick={() => router.push('/settings')} className="h-full group overflow-hidden relative">
-                                <div className="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/0 to-gray-500/0 group-hover:via-gray-500/5 transition-all duration-500" />
+                              <CLICard hoverable onClick={handleClankerDeploy} className="h-full group overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 group-hover:via-blue-500/5 transition-all duration-500" />
                                 <div className="flex items-center sm:flex-col sm:items-start gap-3 relative z-10">
+                                  <div className="w-10 h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+                                    <Zap className="w-5 h-5 text-white" />
+                                  </div>
+                                  <div className="flex-1 text-left min-w-0">
+                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-[#0052FF] transition-colors">Clanker Mode</h3>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Standard SDK Flow</p>
+                                  </div>
+                                </div>
+                              </CLICard>
+                            </motion.div>
+
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
+                              <CLICard hoverable onClick={() => router.push('/settings')} className="h-full group overflow-hidden relative sm:col-span-2">
+                                <div className="absolute inset-0 bg-gradient-to-r from-gray-500/0 via-gray-500/0 to-gray-500/0 group-hover:via-gray-500/5 transition-all duration-500" />
+                                <div className="flex items-center gap-3 relative z-10">
                                   <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
                                     <Settings className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                                   </div>
                                   <div className="flex-1 text-left min-w-0">
-                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">Settings</h3>
-                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Global Config</p>
+                                    <h3 className="font-display text-sm sm:text-base text-gray-800 dark:text-gray-100 font-semibold group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">Terminal Settings</h3>
+                                    <p className="font-mono text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">Global configuration & Wallets</p>
                                   </div>
                                 </div>
                               </CLICard>
@@ -524,7 +543,7 @@ export default function HomePage() {
       < footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors" >
         <div className="flex items-center justify-between max-w-lg sm:max-w-2xl mx-auto">
           <p className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">
-            UMKM v2.0.0
+            UMKM v2.1.0
           </p>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">Base</span>
