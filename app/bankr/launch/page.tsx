@@ -14,6 +14,18 @@ import { showBackButton, hideBackButton, hapticFeedback } from '@/lib/telegram/w
 import { Terminal, TerminalLine } from '@/components/ui/Terminal';
 import { CLIButton, CLICard, StatusBadge } from '@/components/ui/CLIButton';
 import { shortenAddress } from '@/lib/utils';
+import { createPublicClient, http, formatUnits } from 'viem';
+import { base } from 'viem/chains';
+
+// USDC on Base
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
+const ERC20_BALANCE_ABI = [{
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+}] as const;
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type BankrStep = 'form' | 'review' | 'deploying' | 'success' | 'error';
@@ -185,6 +197,29 @@ export default function BankrLaunchPage() {
     const [isDeploying, setIsDeploying] = useState(false);
     const [isAdvanced, setIsAdvanced] = useState(false);
     const [ethPrice, setEthPrice] = useState<number | null>(null);
+    const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
+
+    // Fetch USDC balance for the connected wallet
+    const fetchUsdcBalance = useCallback(async (addr: string) => {
+        try {
+            const client = createPublicClient({
+                chain: base,
+                transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+            });
+            const raw = await client.readContract({
+                address: USDC_ADDRESS,
+                abi: ERC20_BALANCE_ABI,
+                functionName: 'balanceOf',
+                args: [addr as `0x${string}`],
+            }) as bigint;
+            setUsdcBalance(formatUnits(raw, 6));
+        } catch { }
+    }, []);
+
+    useEffect(() => {
+        if (address) fetchUsdcBalance(address);
+    }, [address, fetchUsdcBalance]);
+
 
     // Fetch ETH price
     useEffect(() => {
@@ -446,14 +481,32 @@ export default function BankrLaunchPage() {
                                 exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                 <Terminal title="Token Launch Configuration" className="w-full">
 
-                                    {/* Balance chip + Advanced toggle */}
+                                    {/* Balance chips + Advanced toggle */}
                                     <div className="mb-4 flex items-center gap-3">
-                                        {balance ? (
-                                            <div className="flex-1 p-2.5 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 flex items-center justify-between">
-                                                <span className="font-mono text-[10px] text-gray-500">ETH Balance</span>
-                                                <span className="font-mono text-xs text-orange-500 font-bold">{formatBalance(balance)}</span>
+                                        <div className="flex-1 flex gap-2">
+                                            {balance && (
+                                                <div className="flex-1 p-2.5 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 flex flex-col justify-center min-w-0">
+                                                    <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">ETH</span>
+                                                    <span className="font-mono text-xs text-orange-500 font-bold truncate">{formatBalance(balance)}</span>
+                                                </div>
+                                            )}
+                                            <div className={`flex-1 p-2.5 rounded-lg border flex flex-col justify-center min-w-0 ${usdcBalance && parseFloat(usdcBalance) >= 0.10
+                                                    ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30'
+                                                    : usdcBalance
+                                                        ? 'bg-red-50/30 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
+                                                        : 'bg-gray-50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800'
+                                                }`}>
+                                                <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">USDC</span>
+                                                <span className={`font-mono text-xs font-bold truncate ${usdcBalance === null ? 'text-gray-300' :
+                                                        parseFloat(usdcBalance!) >= 0.10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
+                                                    }`}>
+                                                    {usdcBalance === null ? '...' : `$${parseFloat(usdcBalance).toFixed(2)}`}
+                                                </span>
+                                                {usdcBalance !== null && parseFloat(usdcBalance) < 0.10 && (
+                                                    <span className="font-mono text-[9px] text-orange-400 leading-tight">will auto-swap</span>
+                                                )}
                                             </div>
-                                        ) : <div className="flex-1" />}
+                                        </div>
 
                                         <button type="button" onClick={() => { setIsAdvanced(!isAdvanced); hapticFeedback('light'); }}
                                             className={`p-2.5 rounded-lg border flex items-center gap-2 transition-all ${isAdvanced
