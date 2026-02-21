@@ -8,16 +8,12 @@ import {
 } from '@/lib/access-control';
 import { initDatabase, findUserByTelegramId, createUser, updateUser, getUserStats } from '@/lib/db/turso';
 
-// ⚡ Edge runtime: ~10-50ms cold start vs ~2-5s Node.js Netlify function cold start
-export const runtime = 'nodejs'; // Keep nodejs for Turso compat, but optimize flow
-
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const APP_VERSION = '2.2.0';
 
-// ── In-memory access cache (resets on cold start, good enough for serverless) ──
-// Avoids Turso round-trip on every message for known authorized users
+// ── In-memory access cache — avoids Turso round-trip on repeat messages ───────
 const accessCache = new Map<number, { hasAccess: boolean; isAdmin: boolean; ts: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -28,8 +24,9 @@ async function getCachedAccess(userId: number): Promise<{ hasAccess: boolean; is
   }
   const isAdmin = isAdminUser(userId);
   const { hasAccess } = isAdmin ? { hasAccess: true } : await verifyAccess(userId);
-  accessCache.set(userId, { hasAccess: hasAccess || isAdmin, isAdmin, ts: Date.now() });
-  return { hasAccess: hasAccess || isAdmin, isAdmin };
+  const result = { hasAccess: hasAccess || isAdmin, isAdmin };
+  accessCache.set(userId, { ...result, ts: Date.now() });
+  return result;
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -50,13 +47,14 @@ interface TelegramUpdate {
 }
 
 // Bot API 9.4: style field for colored buttons
-// Values: 'default' | 'primary' (blue) | 'secondary' (gray) | 'danger' (red) | 'success' (green)
+type ButtonStyle = 'default' | 'primary' | 'secondary' | 'danger' | 'success';
+
 interface InlineButton {
   text: string;
   web_app?: { url: string };
   callback_data?: string;
   url?: string;
-  style?: 'default' | 'primary' | 'secondary' | 'danger' | 'success';
+  style?: ButtonStyle;
 }
 
 // Rate limiter
@@ -69,38 +67,42 @@ function validateRequest(req: NextRequest): boolean {
   return req.headers.get('x-telegram-bot-api-secret-token') === WEBHOOK_SECRET;
 }
 
-async function callTelegram(method: string, body: any): Promise<any> {
+async function callTelegram(method: string, body: object): Promise<boolean> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return res.ok ? await res.json() : null;
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`[Bot] ${method} failed ${res.status}: ${err}`);
+    }
+    return res.ok;
   } catch (e) {
-    console.error(`[Bot] ${method} failed:`, e);
-    return null;
+    console.error(`[Bot] ${method} exception:`, e);
+    return false;
   }
 }
 
-async function sendMessage(chatId: number, text: string, options: any = {}) {
+async function sendMessage(chatId: number, text: string, options: object = {}): Promise<boolean> {
   return callTelegram('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...options });
 }
 
-async function answerCallback(id: string, text?: string, show_alert = false) {
+async function answerCallback(id: string, text?: string, show_alert = false): Promise<boolean> {
   return callTelegram('answerCallbackQuery', { callback_query_id: id, text, show_alert });
 }
 
-function kb(rows: InlineButton[][]): any {
+function btn(rows: InlineButton[][]): object {
   return { inline_keyboard: rows };
 }
 
-function formatUser(from: { id?: number; first_name: string; username?: string }) {
+function formatUser(from: { id?: number; first_name: string; username?: string }): string {
   return from.username ? `@${from.username}` : from.first_name;
 }
 
-// ─── Process Update (async, after 200 response sent) ─────────────────────────
-async function processUpdate(update: TelegramUpdate) {
+// ─── Process Update ────────────────────────────────────────────────────────────
+async function processUpdate(update: TelegramUpdate): Promise<void> {
   const from = update.message?.from || update.callback_query?.from;
   if (!from) return;
 
@@ -117,12 +119,11 @@ async function processUpdate(update: TelegramUpdate) {
   if (update.message?.text) {
     const text = update.message.text.trim();
 
-    // For /start — respond instantly with minimal blocking work
     if (text === '/start') {
-      // Parallel: check access + sync user to DB simultaneously
+      // Parallel: check access + sync DB user simultaneously
       const [access] = await Promise.all([
         getCachedAccess(userId),
-        // User sync in background — don't await
+        // DB sync non-blocking — don't affect response time
         (async () => {
           try {
             await initDatabase();
@@ -135,7 +136,7 @@ async function processUpdate(update: TelegramUpdate) {
                 `<b>ID:</b> <code>${userId}</code>`
               );
             } else {
-              await updateUser(userId, { last_active_at: new Date().toISOString(), username: from.username });
+              updateUser(userId, { last_active_at: new Date().toISOString(), username: from.username });
             }
           } catch (e) {
             console.error('[Bot] User sync error:', e);
@@ -152,38 +153,40 @@ async function processUpdate(update: TelegramUpdate) {
           `👋 <b>Welcome, ${from.first_name}!</b>\n\n` +
           `${statusIcon} Status: <b>${statusLabel}</b>\n\n` +
           `You need admin authorization to use this terminal.\n` +
-          `Tap the button below to get your User ID and share it with the admin.`,
+          `Tap the button below to get your User ID.`,
           {
-            reply_markup: kb([
-              [{ text: '🆔 Get My User ID', callback_data: `show_id_${userId}`, style: 'primary' }],
-              [{ text: '🔄 Check Access Status', callback_data: 'check_access', style: 'secondary' }],
+            reply_markup: btn([
+              [{ text: '🆔 Get My User ID', callback_data: `show_id_${userId}`, style: 'primary' as ButtonStyle }],
+              [{ text: '🔄 Check Access Status', callback_data: 'check_access', style: 'secondary' as ButtonStyle }],
             ])
           }
         );
-        // Log unauthorized attempt (non-blocking)
         sendAdminLog(`👤 <b>Unauthorized Attempt</b>\n<b>User:</b> ${formatUser(from)} (<code>${userId}</code>)`);
         return;
       }
 
-      // Authorized / Admin
+      const adminButtons: InlineButton[][] = isAdmin
+        ? [[
+          { text: '📊 System Stats', callback_data: 'admin_stats', style: 'secondary' as ButtonStyle },
+          { text: '📦 Version', callback_data: 'admin_version', style: 'default' as ButtonStyle },
+        ]]
+        : [];
+
       await sendMessage(chatId,
         `🚀 <b>UMKM Terminal v${APP_VERSION}</b>\n\n` +
         `${statusIcon} <b>Status:</b> ${statusLabel}  |  👤 ${from.first_name}\n\n` +
         `<i>Tap below to open the terminal and deploy tokens on Base.</i>`,
         {
-          reply_markup: kb([
-            [{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' as const }],
-            ...(isAdmin
-              ? ([[{ text: '📊 System Stats', callback_data: 'admin_stats', style: 'secondary' as const },
-              { text: '📦 Version', callback_data: 'admin_version', style: 'default' as const }]] as InlineButton[][])
-              : []),
+          reply_markup: btn([
+            [{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' as ButtonStyle }],
+            ...adminButtons,
           ])
         }
       );
       return;
     }
 
-    // For other commands — get access from cache (fast)
+    // Other commands — get access from cache (fast, no DB hit if cached)
     const { hasAccess, isAdmin } = await getCachedAccess(userId);
 
     if (text === '/id' || text === 'ID') {
@@ -198,7 +201,7 @@ async function processUpdate(update: TelegramUpdate) {
         : `📚 <b>Help</b>\n\nPrivate token deployment terminal on Base.\n\n<b>To get access:</b>\n1. /id → get your Telegram User ID\n2. Share with admin\n3. /start when approved`;
       await sendMessage(chatId, helpText);
 
-    } else if ((text === '/stats' || text === 'Status') && isAdmin) {
+    } else if (text === '/stats' && isAdmin) {
       try {
         await initDatabase();
         const stats = await getUserStats();
@@ -224,7 +227,7 @@ async function processUpdate(update: TelegramUpdate) {
       const targetId = parseInt(text.split(' ')[1]);
       if (!isNaN(targetId)) {
         await grantAccess(targetId);
-        accessCache.delete(targetId); // Invalidate cache for target
+        accessCache.delete(targetId);
         await Promise.all([
           sendMessage(chatId, `✅ Access granted to <code>${targetId}</code>`),
           sendMessage(targetId, `🎉 <b>Access Granted!</b>\n\nType /start to open the terminal.`),
@@ -242,7 +245,7 @@ async function processUpdate(update: TelegramUpdate) {
       const targetId = parseInt(text.split(' ')[1]);
       if (!isNaN(targetId)) {
         await revokeAccess(targetId);
-        accessCache.delete(targetId); // Invalidate cache for target
+        accessCache.delete(targetId);
         await sendMessage(chatId, `🚫 Access revoked from <code>${targetId}</code>`);
         sendAdminLog(
           `🚫 <b>Access Revoked</b>\n` +
@@ -254,9 +257,9 @@ async function processUpdate(update: TelegramUpdate) {
       }
 
     } else if (chatId === userId) {
-      // Unknown command in private chat
+      // Unknown command in private chat — guide them
       await sendMessage(chatId, 'Use /start to open the terminal.',
-        { reply_markup: kb([[{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' }]]) }
+        { reply_markup: btn([[{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' as ButtonStyle }]]) }
       );
     }
   }
@@ -299,6 +302,9 @@ async function processUpdate(update: TelegramUpdate) {
 }
 
 // ─── Route Handler ─────────────────────────────────────────────────────────────
+// CRITICAL: Must respond to Telegram within 10 seconds.
+// Strategy: run processUpdate() with await inside a race against 9s timeout.
+// This ensures we always return 200 within Telegram's window, while processing fully.
 export async function POST(request: NextRequest) {
   if (!BOT_TOKEN) return NextResponse.json({ ok: true });
   if (!validateRequest(request)) return NextResponse.json({ ok: true });
@@ -310,11 +316,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  if (!update.message && !update.callback_query) return NextResponse.json({ ok: true });
+  if (!update.message && !update.callback_query) {
+    return NextResponse.json({ ok: true });
+  }
 
-  // ⚡ Respond 200 to Telegram IMMEDIATELY — never timeout
-  // processUpdate runs as fire-and-forget
-  processUpdate(update).catch(e => console.error('[Bot] processUpdate error:', e));
+  // Race: process update vs 9s timeout — Telegram requires response within 10s.
+  // If processUpdate finishes in time (cache hit = <2s, cold start = ~3-4s), all good.
+  // If it times out, Telegram gets 200 and will retry — next time it'll be warm & fast.
+  try {
+    await Promise.race([
+      processUpdate(update),
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 9000)),
+    ]);
+  } catch (e: any) {
+    if (e?.message === 'timeout') {
+      console.warn('[Bot] processUpdate timed out — Telegram got 200, will retry');
+    } else {
+      console.error('[Bot] processUpdate error:', e);
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
