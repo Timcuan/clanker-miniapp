@@ -300,6 +300,13 @@ export default function BankrLaunchPage() {
         addLog('Securing x402 payment channel...');
 
         try {
+            // Read autoSweep from global prefs (Settings page is the single source of truth)
+            let autoSweep = true;
+            try {
+                const prefs = JSON.parse(localStorage.getItem('clanker_prefs') || '{}');
+                if (prefs.autoSweep !== undefined) autoSweep = prefs.autoSweep;
+            } catch { }
+
             const response = await fetch('/api/bankr/launch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -320,8 +327,7 @@ export default function BankrLaunchPage() {
                     rewardRecipient: config.rewardRecipient,
                     vanityEnabled: config.vanityEnabled,
                     vanitySuffix: config.vanityEnabled ? config.vanitySuffix : undefined,
-                    autoSweep: config.autoSweep,
-                    customGasLimit: config.customGasLimit,
+                    autoSweep,
                 }),
             });
 
@@ -334,6 +340,23 @@ export default function BankrLaunchPage() {
             addLog(`TX: ${data.txHash ? data.txHash.slice(0, 14) : '(pending)'}...`);
             addLog(`✓ ${data.deployedViaFallback ? 'Deployed via Clanker SDK Fallback' : 'Bankr Agent succeeded'}`);
             addLog('✓ Confirmed on Base!');
+
+            // Persist burner log entry for Wallet Management page
+            try {
+                const logKey = 'bankr_burner_log';
+                const existing = JSON.parse(localStorage.getItem(logKey) || '[]');
+                const entry = {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    address: data.burnerAddress || 'unknown',
+                    symbol: config.symbol.toUpperCase(),
+                    timestamp: Date.now(),
+                    txHash: data.txHash,
+                    sweepStatus: autoSweep ? 'swept' : 'pending',
+                };
+                // Keep last 20 entries
+                const updated = [...existing, entry].slice(-20);
+                localStorage.setItem(logKey, JSON.stringify(updated));
+            } catch { }
 
             setDeployResult(data);
             hapticFeedback('success');

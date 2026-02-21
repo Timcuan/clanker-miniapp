@@ -278,5 +278,6 @@ export async function POST(request: NextRequest) {
         message: resultMessage,
         txHash,
         deployedViaFallback,
+        burnerAddress: burnerAccount.address, // For client-side burner log tracking
     });
 }
