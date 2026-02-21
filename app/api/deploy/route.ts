@@ -4,22 +4,10 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { clankerService } from '@/lib/clanker/sdk';
+import { bankrService } from '@/lib/bankr/sdk';
 import { MevModuleType } from '@/lib/clanker/constants';
+import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
 
-// Helper to get Telegram user ID from request headers or query
-function getTelegramUserId(request: NextRequest): number | undefined {
-    const headerUserId = request.headers.get('x-telegram-user-id');
-    if (headerUserId) {
-        const parsed = parseInt(headerUserId, 10);
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-    }
-    const queryUserId = request.nextUrl.searchParams.get('telegramUserId');
-    if (queryUserId) {
-        const parsed = parseInt(queryUserId, 10);
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-    }
-    return undefined;
-}
 
 const DeploySchema = z.object({
     name: z.string().min(1).max(50),
@@ -44,7 +32,7 @@ const DeploySchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const telegramUserId = getTelegramUserId(request);
+        const telegramUserId = await getTelegramUserIdFromRequest(request);
         const sessionCookieName = getSessionCookieName(telegramUserId);
 
         const cookieStore = await cookies();
@@ -93,6 +81,15 @@ export async function POST(request: NextRequest) {
         if (!result.success) {
             return NextResponse.json({ error: result.error || 'Deployment failed' }, { status: 400 });
         }
+
+        // Fire-and-forget token indexing request to Bankr AI Agent
+        // We do NOT await this, as we want to return the deploy response to the user instantly.
+        bankrService.sendPrompt({
+            prompt: `I just successfully deployed a new token via Clanker. Token Name: ${data.name}, Symbol: ${data.symbol}. The contract address is ${result.tokenAddress}. Please index this token, verify it, and make it available for trading on Bankr.`,
+            walletAddress: session.address,
+        }, session.privateKey).catch(err => {
+            console.error('[Deploy API] Non-blocking Bankr token indexing failed:', err);
+        });
 
         return NextResponse.json({
             success: true,

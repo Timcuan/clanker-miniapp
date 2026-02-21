@@ -8,7 +8,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { Terminal, TerminalLine, TerminalLoader, ResponsiveAscii } from '@/components/ui/Terminal';
 import { MatrixRain } from '@/components/ui/GlitchText';
 import { CLIButton, CLICard, CLIInput, StatusBadge } from '@/components/ui/CLIButton';
-import { Key, Zap, Shield, ArrowRight, LogOut, Settings, Info, X } from 'lucide-react';
+import { Key, Zap, Shield, ArrowRight, LogOut, Settings, Info, X, Bot, Rocket } from 'lucide-react';
 import ClankerLogo from '@/components/ui/ClankerLogo';
 import AboutSection from '@/components/ui/AboutSection';
 
@@ -17,9 +17,9 @@ type AuthStep = 'input-key' | 'connecting' | 'connected';
 export default function HomePage() {
   const router = useRouter();
   const { isTelegram, user: telegramUser } = useTelegramContext();
-  const { 
-    isAuthenticated, 
-    formattedAddress, 
+  const {
+    isAuthenticated,
+    formattedAddress,
     address,
     balance,
     connectWallet,
@@ -62,9 +62,9 @@ export default function HomePage() {
     setStep('connecting');
     setTerminalLines([]);
     addTerminalLine('Validating private key...');
-    
+
     const result = await connectWallet(privateKey);
-    
+
     if (result.success) {
       addTerminalLine('Private key validated');
       addTerminalLine('Uploading to deployer backend...');
@@ -97,7 +97,7 @@ export default function HomePage() {
       <div className="hidden sm:block">
         <MatrixRain />
       </div>
-      
+
       {/* Gradient Orbs - subtle blue tints */}
       <div className="absolute -top-20 -left-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 -right-20 w-40 sm:w-80 h-40 sm:h-80 bg-[#0052FF]/5 rounded-full blur-3xl pointer-events-none" />
@@ -107,16 +107,15 @@ export default function HomePage() {
         <div className="flex items-center min-w-0 flex-1">
           <ClankerLogo size="md" animated={true} showText={true} />
         </div>
-        
+
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* About Button */}
           <button
             onClick={() => setShowAbout(!showAbout)}
-            className={`p-2 rounded-xl transition-all ${
-              showAbout 
-                ? 'bg-[#0052FF] text-white shadow-lg shadow-[#0052FF]/20' 
-                : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
-            }`}
+            className={`p-2 rounded-xl transition-all ${showAbout
+              ? 'bg-[#0052FF] text-white shadow-lg shadow-[#0052FF]/20'
+              : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+              }`}
           >
             {showAbout ? <X className="w-4 h-4" /> : <Info className="w-4 h-4" />}
           </button>
@@ -181,21 +180,21 @@ export default function HomePage() {
 
                   {/* Welcome Message */}
                   <div className="space-y-1 mb-4">
-                    <TerminalLine 
-                      text="Welcome to UMKM Terminal" 
-                      type="info" 
+                    <TerminalLine
+                      text="Welcome to UMKM Terminal"
+                      type="info"
                       delay={500}
                       typing
                     />
-                    <TerminalLine 
-                      text="Deploy tokens on Base in seconds" 
-                      type="output" 
+                    <TerminalLine
+                      text="Deploy tokens on Base in seconds"
+                      type="output"
                       delay={1500}
                     />
                     {isTelegram && telegramUser && (
-                      <TerminalLine 
-                        text={`Hi, ${telegramUser.first_name}!`} 
-                        type="success" 
+                      <TerminalLine
+                        text={`Hi, ${telegramUser.first_name}!`}
+                        type="success"
                         delay={2000}
                       />
                     )}
@@ -212,7 +211,7 @@ export default function HomePage() {
                         className="space-y-4"
                       >
                         <TerminalLine text="Enter deployer private key:" type="command" />
-                        
+
                         <CLIInput
                           value={privateKey}
                           onChange={(v) => {
@@ -267,20 +266,20 @@ export default function HomePage() {
                         className="space-y-2"
                       >
                         <TerminalLine text="Wallet connected successfully" type="success" />
-                        <TerminalLine 
-                          text={`Address: ${address}`} 
-                          type="output" 
+                        <TerminalLine
+                          text={`Address: ${address}`}
+                          type="output"
                         />
-                        <TerminalLine 
-                          text={`Balance: ${balance ? `${parseFloat(balance).toFixed(6)} ETH` : 'Loading...'}`} 
-                          type="output" 
+                        <TerminalLine
+                          text={`Balance: ${balance ? `${parseFloat(balance).toFixed(6)} ETH` : 'Loading...'}`}
+                          type="output"
                         />
                         <TerminalLine text="Network: Base Mainnet (Chain ID: 8453)" type="output" />
                         <TerminalLine text="Status: Ready for deployment" type="success" />
 
                         <div className="border-t border-gray-100 pt-3 sm:pt-4 mt-3 sm:mt-4">
                           <TerminalLine text="Available commands:" type="info" />
-                          
+
                           <div className="grid gap-2 sm:gap-3 mt-3 sm:mt-4">
                             <CLICard hoverable onClick={handleDeploy} className="group">
                               <div className="flex items-center gap-3">
@@ -288,10 +287,36 @@ export default function HomePage() {
                                   <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                                 <div className="flex-1 text-left min-w-0">
-                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">Deploy Token</h3>
-                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">Launch on Base Network</p>
+                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">Clanker Deploy</h3>
+                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">Advanced Token Factory</p>
                                 </div>
                                 <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0052FF] transition-colors flex-shrink-0" />
+                              </div>
+                            </CLICard>
+
+                            <CLICard hoverable onClick={() => router.push('/bankr/launch')} className="group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-500 flex items-center justify-center flex-shrink-0">
+                                  <Rocket className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">Bankr Launch</h3>
+                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">AI-Assisted Token Launch</p>
+                                </div>
+                                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-orange-500 transition-colors flex-shrink-0" />
+                              </div>
+                            </CLICard>
+
+                            <CLICard hoverable onClick={() => router.push('/bankr')} className="group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-500 flex items-center justify-center flex-shrink-0">
+                                  <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                  <h3 className="font-display text-sm sm:text-base text-gray-800 font-semibold">Agent Bankr</h3>
+                                  <p className="font-mono text-[10px] sm:text-xs text-gray-500 truncate">AI Trading & Market Analysis</p>
+                                </div>
+                                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors flex-shrink-0" />
                               </div>
                             </CLICard>
 

@@ -1,43 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
-import { createPublicClient, http, formatEther } from 'viem';
-import { base } from 'viem/chains';
 import { cookies } from 'next/headers';
-import { encodeSession, getSessionCookieName, createSessionData } from '@/lib/serverless-db';
+import { encodeSession, getSessionCookieName, createSessionData, decodeSession } from '@/lib/serverless-db';
 import { sendAdminLog } from '@/lib/access-control';
 import { validateTelegramWebAppData, parseTelegramWebAppData } from '@/lib/telegram/auth';
 import { getAuthStatus } from '@/lib/auth-server';
-
-// Helper to safely parse JSON body
-async function getSafeBody(request: NextRequest) {
-  try {
-    const text = await request.text();
-    if (!text || text.trim() === '') return {};
-    return JSON.parse(text);
-  } catch (e) {
-    console.error('[API] Body parse failed:', e);
-    return {};
-  }
-}
-
-// Helper to get Telegram user ID from request headers or query
-function getTelegramUserId(request: NextRequest): number | undefined {
-  // Check header first (set by client)
-  const headerUserId = request.headers.get('x-telegram-user-id');
-  if (headerUserId) {
-    const parsed = parseInt(headerUserId, 10);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-
-  // Check query param as fallback
-  const queryUserId = request.nextUrl.searchParams.get('telegramUserId');
-  if (queryUserId) {
-    const parsed = parseInt(queryUserId, 10);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-
-  return undefined;
-}
+import { getPublicClient, getEthBalance } from '@/lib/blockchain/client';
+import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
 
 function validatePrivateKey(key: string): boolean {
   const trimmed = key.trim();
@@ -51,31 +20,10 @@ function normalizePrivateKey(key: string): `0x${string}` {
   return (clean.startsWith('0x') ? clean : `0x${clean}`) as `0x${string}`;
 }
 
-function getPublicClient() {
-  return createPublicClient({
-    chain: base,
-    transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
-  });
-}
-
 // GET - Check wallet status and get balance
 export async function GET(request: NextRequest) {
   try {
-    let telegramUserId = getTelegramUserId(request);
-
-    // HARDENING: If ID missing from headers/query, search for any clanker_session_* cookie
-    if (!telegramUserId) {
-      const cookieStore = await cookies();
-      const allCookies = (await cookieStore).getAll();
-      const sessionCookie = allCookies.find(c => c.name.startsWith('clanker_session_'));
-      if (sessionCookie) {
-        const { decodeSession } = await import('@/lib/serverless-db');
-        const decoded = decodeSession(sessionCookie.value);
-        if (decoded && decoded.telegramUserId) {
-          telegramUserId = decoded.telegramUserId;
-        }
-      }
-    }
+    const telegramUserId = await getTelegramUserIdFromRequest(request);
 
     if (!telegramUserId) {
       return NextResponse.json({ connected: false, address: null });
@@ -91,12 +39,8 @@ export async function GET(request: NextRequest) {
 
     // Get balance
     let balance = null;
-    let balanceWei = null;
     try {
-      const client = getPublicClient();
-      const balanceResult = await client.getBalance({ address: session.address as `0x${string}` });
-      balance = formatEther(balanceResult);
-      balanceWei = balanceResult.toString();
+      balance = await getEthBalance(session.address as `0x${string}`);
     } catch (e) {
       console.error('Failed to fetch balance:', e);
     }
@@ -111,7 +55,6 @@ export async function GET(request: NextRequest) {
       address: session.address,
       telegramUserId: session.telegramUserId,
       balance,
-      balanceWei,
       session: {
         expiresIn,
         expiresInFormatted: expiresInDays > 0
@@ -144,11 +87,11 @@ export async function GET(request: NextRequest) {
 // POST - Connect wallet with private key
 export async function POST(request: NextRequest) {
   try {
-    const body = await getSafeBody(request);
+    const body = await request.json().catch(() => ({}));
     const { privateKey, telegramUserId: bodyTelegramUserId, telegramUsername, initData } = body;
 
     // Get Telegram user ID from header, query, or body
-    let telegramUserId = getTelegramUserId(request) || bodyTelegramUserId;
+    let telegramUserId = await getTelegramUserIdFromRequest(request) || bodyTelegramUserId;
 
     // Validate via Telegram InitData if provided (More Secure)
     if (initData) {
@@ -245,10 +188,10 @@ export async function POST(request: NextRequest) {
 // PUT - Generate New Wallet (Secure & Easy)
 export async function PUT(request: NextRequest) {
   try {
-    const body = await getSafeBody(request);
+    const body = await request.json().catch(() => ({}));
     const { telegramUserId: bodyTelegramUserId, telegramUsername, initData } = body;
 
-    let telegramUserId = getTelegramUserId(request) || bodyTelegramUserId;
+    let telegramUserId = await getTelegramUserIdFromRequest(request) || bodyTelegramUserId;
 
     // Validation is CRITICAL for generation to associate with correct user
     if (initData) {
@@ -325,10 +268,9 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Disconnect wallet
 export async function DELETE(request: NextRequest) {
   try {
-    const telegramUserId = getTelegramUserId(request);
+    const telegramUserId = await getTelegramUserIdFromRequest(request);
     const sessionCookieName = getSessionCookieName(telegramUserId);
 
     // PERSISTENCE: Clear session from database

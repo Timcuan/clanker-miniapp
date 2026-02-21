@@ -5,8 +5,7 @@ import { deployToken, simulateDeployment, DeployTokenConfig, DeployResult } from
 import { TokenInputData, BuildConfigOptions } from './config';
 import { DEFAULT_CONFIG, MevModuleType } from './constants';
 import { privateKeyToAccount } from 'viem/accounts';
-import { createPublicClient, http, formatEther } from 'viem';
-import { base } from 'viem/chains';
+import { getPublicClient, getEthBalance } from '../blockchain/client';
 
 // Types
 export interface WalletState {
@@ -45,18 +44,13 @@ export class ClankerService {
       }
 
       const account = privateKeyToAccount(privateKey as `0x${string}`);
-      const client = createPublicClient({
-        chain: base,
-        transport: http(this.rpcUrl),
-      });
-
-      const balance = await client.getBalance({ address: account.address });
+      const balance = await getEthBalance(account.address, this.rpcUrl);
 
       return {
         success: true,
         address: account.address,
-        balance: formatEther(balance),
-        balanceWei: balance,
+        balance: balance,
+        // Optional: Keep balanceWei if absolutely needed, but getEthBalance returns ether string
       };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch wallet info' };

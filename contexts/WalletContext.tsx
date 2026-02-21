@@ -1,8 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import { createPublicClient, http } from 'viem';
-import { base } from 'viem/chains';
+import { getPublicClient, formatAddress } from '@/lib/blockchain/client';
 
 interface SessionInfo {
   expiresIn: number;
@@ -26,7 +25,7 @@ interface WalletContextType {
 
   // Viem clients
   walletClient: string | null;
-  publicClient: ReturnType<typeof createPublicClient>;
+  publicClient: any;
 
   // Advanced Network settings
   customRpcUrl: string;
@@ -43,9 +42,6 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | null>(null);
 
-function formatAddress(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
 
 // Helper to get Telegram user ID
 function getTelegramUserId(): number | null {
@@ -103,10 +99,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize dynamic viem client
   const publicClient = React.useMemo(() => {
-    return createPublicClient({
-      chain: base,
-      transport: http(customRpcUrl || process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
-    });
+    return getPublicClient(customRpcUrl);
   }, [customRpcUrl]);
 
   const updateRpcUrl = useCallback((url: string) => {

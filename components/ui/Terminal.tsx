@@ -10,6 +10,7 @@ interface TerminalLineProps {
   delay?: number;
   typing?: boolean;
   onComplete?: () => void;
+  className?: string;
 }
 
 export function TerminalLine({
@@ -18,7 +19,8 @@ export function TerminalLine({
   type = 'command',
   delay = 0,
   typing = false,
-  onComplete
+  onComplete,
+  className = ''
 }: TerminalLineProps) {
   const [displayText, setDisplayText] = useState(typing ? '' : text);
   const [showCursor, setShowCursor] = useState(typing);
@@ -86,7 +88,7 @@ export function TerminalLine({
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: delay / 1000, duration: 0.2 }}
-      className="font-mono text-xs sm:text-sm leading-relaxed flex"
+      className={`font-mono text-xs sm:text-sm leading-relaxed flex ${className}`}
     >
       {type === 'command' && (
         <span className={`${getPrefixStyles()} mr-2 select-none`}>{prefix}</span>
