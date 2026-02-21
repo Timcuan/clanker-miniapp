@@ -116,6 +116,7 @@ export class BankrService {
         taxPercentage: number;
         rewardRecipient: string;
         salt?: string;
+        vanitySuffix?: string;
         burnerWalletAddress: string;
         realWalletAddress: string;
     }, burnerPrivateKey: string) {
@@ -147,9 +148,14 @@ export class BankrService {
         }
         launchInstruction += `\n`;
 
-        if (params.salt) {
+        // Vanity suffix (Bankr v2: uses ADDRESS SUFFIX, not prefix)
+        if (params.vanitySuffix) {
+            launchInstruction += `- Vanity Contract Address (CRITICAL): The resulting deployed contract address MUST END WITH the suffix: "${params.vanitySuffix}". `;
+            launchInstruction += `You must use CREATE2 salt grinding to find a deployment salt that produces a contract address ending in the suffix "${params.vanitySuffix}". `;
+            launchInstruction += `This is a vanity suffix requirement, not a prefix. The address should look like: 0x...${params.vanitySuffix}\n`;
+        } else if (params.salt) {
             launchInstruction += `- Deployment Salt (CRITICAL): ${params.salt}\n`;
-            launchInstruction += `You MUST explicitly use this exact hexadecimal salt value for the underlying CREATE2 deployment call. This ensures the resulting contract address has the requested vanity prefix.\n`;
+            launchInstruction += `You MUST explicitly use this exact hexadecimal salt value for the underlying CREATE2 deployment call.\n`;
         }
 
         // --- EXPLICIT DASHBOARD PROFILING ---

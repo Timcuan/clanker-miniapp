@@ -34,6 +34,8 @@ const BankrLaunchSchema = z.object({
     website: z.string().url().optional().or(z.literal('')),
     autoSweep: z.boolean().optional(),
     customGasLimit: z.boolean().optional(),
+    vanityEnabled: z.boolean().optional(),
+    vanitySuffix: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -136,6 +138,7 @@ export async function POST(request: NextRequest) {
                         taxPercentage: data.taxPercentage,
                         rewardRecipient: data.rewardRecipient,
                         salt: data.salt,
+                        vanitySuffix: data.vanityEnabled ? data.vanitySuffix : undefined,
                         burnerWalletAddress: burnerAccount.address,
                         realWalletAddress: session.address
                     }, burnerPk);
