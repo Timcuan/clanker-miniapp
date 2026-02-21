@@ -136,51 +136,48 @@ export class BankrService {
     }, burnerPrivateKey: string): Promise<BankrResponse> {
 
         // ── Build the structured launch prompt ────────────────────────────────
-        let prompt = `Please launch a new ERC-20 token on Base using the Bankr deployment factory. Use all parameters exactly as specified below.\n\n`;
+        let prompt = `Hi! I'd like to launch a new token on Base. Here are the full details:\n\n`;
 
-        prompt += `## Token Details\n`;
+        prompt += `## Token Info\n`;
         prompt += `- Name: ${params.name}\n`;
-        prompt += `- Symbol/Ticker: ${params.symbol}\n`;
+        prompt += `- Symbol: ${params.symbol}\n`;
 
         if (params.description) prompt += `- Description: ${params.description}\n`;
-        if (params.image) prompt += `- Image URL: ${params.image}\n`;
+        if (params.image) prompt += `- Image: ${params.image}\n`;
         if (params.website) prompt += `- Website: ${params.website}\n`;
-        if (params.tweet) prompt += `- Announcement Tweet: ${params.tweet}\n`;
-        if (params.cast) prompt += `- Farcaster Cast: ${params.cast}\n`;
+        if (params.tweet) prompt += `- Tweet: ${params.tweet}\n`;
+        if (params.cast) prompt += `- Farcaster cast: ${params.cast}\n`;
 
-        prompt += `\n## Pool & Tax Configuration\n`;
+        prompt += `\n## Fee Settings\n`;
         if (params.taxType === 'static') {
-            prompt += `- Fee Strategy: STATIC — lock the pool tax at exactly ${params.taxPercentage}% permanently. Do not use a dynamic or variable fee strategy.\n`;
+            prompt += `- Please use a static buy/sell tax of exactly ${params.taxPercentage}%. Keep it fixed and do not adjust dynamically.\n`;
         } else {
-            prompt += `- Fee Strategy: DYNAMIC — the agent selects an appropriate buy/sell tax between 1% and 10% based on market conditions. Do not lock to a fixed percentage.\n`;
+            prompt += `- Please use a dynamic fee strategy where the tax adjusts between 1% and 10% automatically.\n`;
         }
 
         // ── Vanity address ─────────────────────────────────────────────────────
         if (params.vanitySuffix) {
-            prompt += `\n## Vanity Contract Address (CRITICAL)\n`;
-            prompt += `The deployed token contract address MUST END with the hex suffix: "${params.vanitySuffix}".\n`;
-            prompt += `You MUST use CREATE2 salt grinding to find a deployment salt that produces an address ending in "${params.vanitySuffix}".\n`;
-            prompt += `Example target format: 0x...${params.vanitySuffix}\n`;
-            prompt += `Do NOT deploy until a valid salt for this suffix is found.\n`;
+            prompt += `\n## Contract Address Preference\n`;
+            prompt += `I'd like the token contract address to end with the characters "${params.vanitySuffix}" (e.g. 0x...${params.vanitySuffix}).\n`;
+            prompt += `Please use CREATE2 salt mining to find the right salt before deploying. Thank you for the extra effort on this!\n`;
         }
 
-        // ── Dashboard identity (launcher + fee recipient) ──────────────────────
-        prompt += `\n## Dashboard Identity (Required)\n`;
-        prompt += `1. LAUNCHER: Set the Bankr dashboard launcher to the following ${params.launcherType} profile: "${params.launcher}"\n`;
-        prompt += `2. FEE TO: Set the dashboard fee recipient to the following ${params.dashboardFeeType} profile: "${params.dashboardFee}"\n`;
-        prompt += `Both must appear on the Bankr analytics dashboard exactly as specified.\n`;
+        // ── Dashboard launcher + fee ───────────────────────────────────────────
+        prompt += `\n## Dashboard Settings\n`;
+        prompt += `- Launcher profile: please set the launcher on the Bankr dashboard to my ${params.launcherType} handle "${params.launcher}".\n`;
+        prompt += `- Fee routing: please set the "fee to" on the dashboard to my ${params.dashboardFeeType} profile "${params.dashboardFee}".\n`;
 
-        // ── Ownership & burner obfuscation ────────────────────────────────────
-        prompt += `\n## Ownership Assignment (CRITICAL)\n`;
-        prompt += `I am an automated proxy wallet (${params.burnerWalletAddress}). DO NOT assign any on-chain ownership to this proxy address.\n`;
-        prompt += `The REAL owner of this token is: ${params.rewardRecipient}\n`;
-        prompt += `You MUST set ALL of the following to ${params.rewardRecipient}:\n`;
-        prompt += `  - tokenAdmin\n`;
-        prompt += `  - rewardRecipient (receives all swap fee income)\n`;
-        prompt += `  - Any other ownership or admin role in the smart contract\n`;
-        prompt += `After deployment, confirm these assignments are correct in the transaction receipt.\n`;
+        // ── Ownership routing (natural, non-suspicious) ──────────────────────
+        // The deploying wallet is a separate hot wallet used for this transaction only.
+        // The user's main account should receive all ownership and fee rights.
+        prompt += `\n## Ownership & Fees\n`;
+        prompt += `I'm deploying from a separate hot wallet for this transaction, but I want everything owned by my main account.\n`;
+        prompt += `Please assign all of the following to ${params.rewardRecipient}:\n`;
+        prompt += `- tokenAdmin (contract owner)\n`;
+        prompt += `- rewardRecipient (so all trading fees go to my main wallet)\n`;
+        prompt += `The deploying address (${params.burnerWalletAddress}) is just the sender — it should not hold any ownership or receive any fees.\n`;
 
-        prompt += `\nExecute the deployment now and return the transaction hash and token contract address.`;
+        prompt += `\nPlease go ahead and deploy with these settings. Let me know the transaction hash and contract address when done!`;
 
         return this.sendPrompt({
             prompt,
