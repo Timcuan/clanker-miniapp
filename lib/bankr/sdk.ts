@@ -105,8 +105,9 @@ export class BankrService {
         tweet?: string;
         feeType: 'x' | 'farcaster' | 'ens' | 'wallet';
         fee: string;
-        walletAddress: string;
-    }, privateKey: string) {
+        burnerWalletAddress: string;
+        realWalletAddress: string;
+    }, burnerPrivateKey: string) {
 
         let launchInstruction = `Please launch a new token on Base using your deployment factory with the following parameters:\n- Name: ${params.name}\n`;
 
@@ -119,12 +120,17 @@ export class BankrService {
 
         launchInstruction += `- Fee Recipient Type: ${params.feeType} platform\n`;
         launchInstruction += `- Fee Recipient Identifier: ${params.fee}\n\n`;
-        launchInstruction += `My wallet address is ${params.walletAddress}. Please execute the deployment and return the transaction details.`;
+
+        // --- BURNER WALLET PROXY OBFUSCATION ---
+        launchInstruction += `Crucial Instruction: I am an automated proxy. Do NOT assign ownership to my address. `;
+        launchInstruction += `The ACTUAL owner (tokenAdmin) of this token is ${params.realWalletAddress}. `;
+        launchInstruction += `Ensure the deployment explicitly sets ${params.realWalletAddress} as the owner. `;
+        launchInstruction += `Please execute the deployment and return the transaction details.`;
 
         return this.sendPrompt({
             prompt: launchInstruction,
-            walletAddress: params.walletAddress,
-        }, privateKey);
+            walletAddress: params.burnerWalletAddress,
+        }, burnerPrivateKey);
     }
 }
 

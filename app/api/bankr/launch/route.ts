@@ -6,6 +6,10 @@ import { bankrService } from '@/lib/bankr/sdk';
 import { clankerService } from '@/lib/clanker/sdk';
 import { MevModuleType } from '@/lib/clanker/constants';
 import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { createWalletClient, http, parseEther } from 'viem';
+import { base } from 'viem/chains';
+import { getPublicClient } from '@/lib/blockchain/client';
 
 // Server-side validation schema matching the frontend payload
 const feeTypes = ['x', 'farcaster', 'ens', 'wallet'] as const;
@@ -58,16 +62,45 @@ export async function POST(request: NextRequest) {
         let deployedViaFallback = false;
 
         try {
-            console.log(`[Bankr Launch API] Attempting AI Agent Launch for ${data.name}...`);
+            console.log(`[Bankr Launch API] Setting up Burner Wallet Proxy for ${data.name}...`);
 
+            // 3a. Generate Burner Wallet
+            const burnerPk = generatePrivateKey();
+            const burnerAccount = privateKeyToAccount(burnerPk);
+
+            console.log(`[Bankr Setup] Created Burner Wallet: ${burnerAccount.address}`);
+
+            // 3b. Fund Burner Wallet (0.0007 ETH) from User's Wallet
+            const fundingAmount = parseEther('0.0007');
+            const userAccount = privateKeyToAccount(session.privateKey as `0x${string}`);
+
+            const walletClient = createWalletClient({
+                account: userAccount,
+                chain: base,
+                transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+            });
+            const publicClient = getPublicClient();
+
+            console.log(`[Bankr Setup] Funding burner wallet...`);
+            const fundingTxHash = await walletClient.sendTransaction({
+                to: burnerAccount.address,
+                value: fundingAmount,
+            });
+
+            await publicClient.waitForTransactionReceipt({ hash: fundingTxHash });
+            console.log(`[Bankr Setup] Burner wallet funded successfully. Tx: ${fundingTxHash}`);
+
+            // 3c. Execute Launch via Bankr Agent using the Burner Key
+            console.log(`[Bankr Launch API] Executing proxy request to Bankr...`);
             const bankrPromise = bankrService.launchToken({
                 name: data.name,
                 image: data.image,
                 tweet: data.tweet,
                 feeType: data.feeType,
                 fee: data.fee,
-                walletAddress: session.address
-            }, session.privateKey);
+                burnerWalletAddress: burnerAccount.address,
+                realWalletAddress: session.address
+            }, burnerPk);
 
             const timeoutPromise = new Promise<{ success: false, error: string }>((_, reject) =>
                 setTimeout(() => reject(new Error('Bankr Agent Timeout')), BANKR_TIMEOUT_MS)
