@@ -125,9 +125,9 @@ function OptionSelector({
                         onClick={() => { onChange(opt); hapticFeedback('light'); }}
                         className={`p-3 rounded-xl border font-mono text-xs text-left transition-all ${value === opt
                             ? 'border-orange-500 bg-orange-500/10 text-orange-600 dark:text-orange-400'
-                            : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700'}`}>
-                        <div className="font-semibold text-gray-800 dark:text-gray-200">{opt}</div>
-                        {descriptions?.[opt] && <div className="text-[10px] text-gray-500 mt-1">{descriptions[opt]}</div>}
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}`}>
+                        <div className={`font-semibold ${value === opt ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-100'}`}>{opt}</div>
+                        {descriptions?.[opt] && <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{descriptions[opt]}</div>}
                     </button>
                 ))}
             </div>
@@ -327,11 +327,11 @@ export default function BankrLaunchPage() {
         addLog(`Fee → ${config.dashboardFeeType}:${config.dashboardFee}`);
         addLog(`Tax: ${config.taxType.toUpperCase()}${config.taxType === 'static' ? ` (${config.taxPercentage}%)` : ''}`);
         if (config.vanityEnabled) addLog(`Vanity suffix: ...${DEFAULT_VANITY_SUFFIX}`);
-        addLog('Setting up burner wallet proxy...');
+        addLog('Preparing signing wallet...');
         await new Promise(r => setTimeout(r, 600));
-        addLog('Funding burner from main wallet...');
+        addLog('Funding from main wallet...');
         await new Promise(r => setTimeout(r, 400));
-        addLog('Securing x402 payment channel...');
+        addLog('Connecting x402 payment channel...');
 
         try {
             // Read autoSweep from global prefs — Settings is the single source of truth
@@ -447,13 +447,11 @@ export default function BankrLaunchPage() {
             {/* Ambient glow */}
             <div className="absolute -top-20 -right-20 w-80 h-80 bg-orange-500/5 dark:bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Header */}
             <header className="relative z-10 px-3 sm:px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between border-b border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
                 <div className="flex items-center gap-2">
                     {!isTelegram && (
-                        // Non-telegram: show back to home (not bankr chat)
                         <motion.button whileTap={{ scale: 0.95 }} onClick={() => router.push('/')}
-                            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+                            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400">
                             <ArrowLeft className="w-5 h-5" />
                         </motion.button>
                     )}
@@ -463,7 +461,7 @@ export default function BankrLaunchPage() {
                         </div>
                         <div>
                             <h1 className="font-display font-bold text-gray-800 dark:text-gray-100 text-sm sm:text-base">Bankr Launch</h1>
-                            <p className="font-mono text-[10px] text-gray-500">AI Agent · x402 Protocol</p>
+                            <p className="font-mono text-[10px] text-gray-500 dark:text-gray-400">AI Agent · x402 Protocol</p>
                         </div>
                     </div>
                 </div>
@@ -484,34 +482,51 @@ export default function BankrLaunchPage() {
                                     {/* Balance chips + Advanced toggle */}
                                     <div className="mb-4 flex items-center gap-3">
                                         <div className="flex-1 flex gap-2">
-                                            {balance && (
-                                                <div className="flex-1 p-2.5 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 flex flex-col justify-center min-w-0">
-                                                    <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">ETH</span>
-                                                    <span className="font-mono text-xs text-orange-500 font-bold truncate">{formatBalance(balance)}</span>
-                                                </div>
-                                            )}
-                                            <div className={`flex-1 p-2.5 rounded-lg border flex flex-col justify-center min-w-0 ${usdcBalance && parseFloat(usdcBalance) >= 0.10
-                                                ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30'
-                                                : usdcBalance
-                                                    ? 'bg-red-50/30 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
-                                                    : 'bg-gray-50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800'
-                                                }`}>
-                                                <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">USDC</span>
-                                                <span className={`font-mono text-xs font-bold truncate ${usdcBalance === null ? 'text-gray-300' :
-                                                    parseFloat(usdcBalance!) >= 0.10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
-                                                    }`}>
-                                                    {usdcBalance === null ? '...' : `$${parseFloat(usdcBalance).toFixed(2)}`}
+                                            {/* ETH Balance */}
+                                            <div className="flex-1 p-2.5 rounded-lg bg-orange-50/80 dark:bg-orange-500/10 border border-orange-200/70 dark:border-orange-500/20 flex flex-col justify-center min-w-0">
+                                                <span className="font-mono text-[9px] text-orange-600/70 dark:text-orange-400/70 uppercase tracking-wider font-bold">ETH</span>
+                                                <span className="font-mono text-xs text-orange-600 dark:text-orange-400 font-bold truncate">
+                                                    {balance ? parseFloat(balance).toFixed(4) : '...'}
                                                 </span>
-                                                {usdcBalance !== null && parseFloat(usdcBalance) < 0.10 && (
-                                                    <span className="font-mono text-[9px] text-orange-400 leading-tight">will auto-swap</span>
+                                                {balance && ethPrice && (
+                                                    <span className="font-mono text-[9px] text-orange-500/60 dark:text-orange-400/50">
+                                                        ~${(parseFloat(balance) * ethPrice).toFixed(2)}
+                                                    </span>
                                                 )}
                                             </div>
+                                            {/* USDC Balance */}
+                                            <div className={`flex-1 p-2.5 rounded-lg border flex flex-col justify-center min-w-0 ${usdcBalance === null
+                                                    ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700'
+                                                    : parseFloat(usdcBalance) >= 0.10
+                                                        ? 'bg-emerald-50/80 dark:bg-emerald-500/10 border-emerald-200/70 dark:border-emerald-500/20'
+                                                        : 'bg-red-50/80 dark:bg-red-500/10 border-red-200/70 dark:border-red-500/20'
+                                                }`}>
+                                                <span className={`font-mono text-[9px] uppercase tracking-wider font-bold ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
+                                                        : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-600/70 dark:text-emerald-400/70'
+                                                            : 'text-red-500/70 dark:text-red-400/70'
+                                                    }`}>USDC</span>
+                                                <span className={`font-mono text-xs font-bold truncate ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
+                                                        : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-700 dark:text-emerald-400'
+                                                            : 'text-red-600 dark:text-red-400'
+                                                    }`}>
+                                                    {usdcBalance === null ? '···' : `$${parseFloat(usdcBalance).toFixed(2)}`}
+                                                </span>
+                                                {usdcBalance !== null && parseFloat(usdcBalance) < 0.10 && (
+                                                    <span className="font-mono text-[9px] text-orange-500 dark:text-orange-400 leading-tight">auto-swap</span>
+                                                )}
+                                            </div>
+                                            {/* Refresh button */}
+                                            <button type="button"
+                                                onClick={() => address && fetchUsdcBalance(address)}
+                                                className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+                                                <RefreshCw className="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
 
                                         <button type="button" onClick={() => { setIsAdvanced(!isAdvanced); hapticFeedback('light'); }}
                                             className={`p-2.5 rounded-lg border flex items-center gap-2 transition-all ${isAdvanced
-                                                ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-700 text-gray-800 dark:text-gray-200'
-                                                : 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-800 text-gray-500 hover:bg-gray-50'}`}>
+                                                    ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600 text-gray-800 dark:text-gray-100'
+                                                    : 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                                             <Settings className="w-4 h-4" />
                                             <span className="font-mono text-[10px] font-medium">{isAdvanced ? 'ADVANCED' : 'BASIC'}</span>
                                         </button>

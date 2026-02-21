@@ -10,9 +10,10 @@ import { initDatabase, findUserByTelegramId, createUser, updateUser, getUserStat
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://clanker-terminal.netlify.app';
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET; // Optional: verify secret token
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+const APP_VERSION = '2.2.0';
 
-// Types
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface TelegramUpdate {
   update_id: number;
   message?: {
@@ -30,236 +31,287 @@ interface TelegramUpdate {
   };
 }
 
-interface InlineKeyboardButton {
-  text: string;
-  web_app?: { url: string };
-  url?: string;
-  callback_data?: string;
-  style?: 'default' | 'primary' | 'secondary' | 'danger' | 'success'; // Telegram Bot API 9.4
-}
-
-// In-memory rate limiting (simple implementation)
+// In-memory rate limiting
 const rateLimit = new Map<number, number>();
-const RATE_LIMIT_MS = 800; // Slightly reduced for responsiveness
+const RATE_LIMIT_MS = 800;
 
-// Helper: Validation
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function validateRequest(req: NextRequest): boolean {
-  if (!WEBHOOK_SECRET) return true; // Skip if not configured
-  const token = req.headers.get('x-telegram-bot-api-secret-token');
-  return token === WEBHOOK_SECRET;
+  if (!WEBHOOK_SECRET) return true;
+  return req.headers.get('x-telegram-bot-api-secret-token') === WEBHOOK_SECRET;
 }
 
-// Helper: Telegram API Wrapper
 async function callTelegram(method: string, body: any) {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return response.ok;
+    return res.ok;
   } catch (e) {
-    console.error(`[Telegram API] Failed to call ${method}:`, e);
+    console.error(`[Bot] ${method} failed:`, e);
     return false;
   }
 }
 
 async function sendMessage(chatId: number, text: string, options: any = {}) {
-  const body = {
-    chat_id: chatId,
-    text,
-    parse_mode: 'HTML',
-    ...options
-  };
-  return callTelegram('sendMessage', body);
+  return callTelegram('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...options });
 }
 
-async function answerCallback(callback_query_id: string, text?: string, show_alert = false) {
-  return callTelegram('answerCallbackQuery', { callback_query_id, text, show_alert });
+async function answerCallback(id: string, text?: string, show_alert = false) {
+  return callTelegram('answerCallbackQuery', { callback_query_id: id, text, show_alert });
 }
 
 async function sendTyping(chatId: number) {
   return callTelegram('sendChatAction', { chat_id: chatId, action: 'typing' });
 }
 
-// --- COMMAND HANDLERS ---
+function formatUser(from: { id?: number; first_name: string; username?: string }) {
+  return from.username ? `@${from.username}` : from.first_name;
+}
 
-async function handleStart(userId: number, chatId: number, isAdmin: boolean, hasAccess: boolean) {
-  // 1. Force-Disable any custom Menu Button (the blue Terminal button)
-  await callTelegram('setChatMenuButton', { chat_id: chatId, menu_button: { type: 'default' } });
+// ─── Command Handlers ─────────────────────────────────────────────────────────
 
-  // 2. Remove Reply Keyboard entirely to satisfy "One Button" requirement
-  await sendMessage(chatId, "UMKM Terminal Control Hub.", {
-    reply_markup: { remove_keyboard: true }
-  });
+async function handleStart(userId: number, chatId: number, isAdmin: boolean, hasAccess: boolean, from: { first_name: string; username?: string }) {
+  // Remove any custom keyboard
+  await sendMessage(chatId, '·', { reply_markup: { remove_keyboard: true } });
 
-  // 3. The ONLY Launch Button (Consolidated Inline Button)
+  const statusIcon = isAdmin ? '🛡️' : (hasAccess ? '✅' : '🔒');
   const statusLabel = isAdmin ? 'Admin' : (hasAccess ? 'Authorized' : 'Restricted');
 
-  const welcomeText = `🚀 <b>UMKM Terminal v1.1.2</b>\n\nStatus: <b>${statusLabel}</b>\n\nClick the button below to launch your terminal.`;
-
-  const inlineButtons: InlineKeyboardButton[][] = [
-    [{ text: "🖥 Launch Terminal", web_app: { url: APP_URL }, style: 'success' }]
-  ];
-
   if (!hasAccess && !isAdmin) {
+    // Unauthorized user flow
     await sendMessage(chatId,
-      "⚠️ <b>Authorization Required</b>\n\nYou are not authorized to access this terminal. Please contact an admin with your ID below.",
+      `👋 <b>Welcome, ${from.first_name}!</b>\n\n` +
+      `${statusIcon} <b>Status:</b> ${statusLabel}\n\n` +
+      `You need authorization to use this terminal.\n` +
+      `Share your User ID with the admin to request access.`,
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "🔄 Check Access", callback_data: "check_access", style: 'primary' }],
-            [{ text: "🆔 Copy ID", callback_data: `copy_id_${userId}`, style: 'secondary' }]
+            [{ text: '🆔 My User ID', callback_data: `show_id_${userId}` }],
+            [{ text: '🔄 Check Access', callback_data: 'check_access' }],
           ]
         }
       }
     );
-  } else {
-    await sendMessage(chatId, welcomeText, {
-      reply_markup: { inline_keyboard: inlineButtons }
-    });
+
+    // Log unauthorized access attempt to admin
+    sendAdminLog(
+      `👤 <b>Unauthorized Access Attempt</b>\n` +
+      `<b>User:</b> ${formatUser(from)} (<code>${userId}</code>)`
+    );
+    return;
   }
+
+  // Authorized flow — clean single launch button
+  await sendMessage(chatId,
+    `🚀 <b>UMKM Terminal v${APP_VERSION}</b>\n\n` +
+    `${statusIcon} <b>Status:</b> ${statusLabel}\n` +
+    `👤 <b>User:</b> ${from.first_name}\n\n` +
+    `<i>Tap the button to open the terminal.</i>`,
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🖥 Open Terminal', web_app: { url: APP_URL } }],
+          ...(isAdmin ? [[{ text: '📊 Stats', callback_data: 'admin_stats' }]] : []),
+        ]
+      }
+    }
+  );
 }
 
-// --- MAIN ROUTE ---
-
+// ─── Main Route ───────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     if (!BOT_TOKEN) return NextResponse.json({ ok: true });
 
-    // 1. Security Check
     if (!validateRequest(request)) {
-      console.warn('[Bot] Invalid secret token');
-      return NextResponse.json({ ok: true }); // Silent fail to not leak info
+      console.warn('[Bot] Invalid webhook secret');
+      return NextResponse.json({ ok: true });
     }
 
     const update: TelegramUpdate = await request.json();
-
-    // Quick exit for irrelevant updates
     if (!update.message && !update.callback_query) return NextResponse.json({ ok: true });
 
-    // 2. Database Init (Robustness: Don't fail hard if DB is laggy, just degrade)
+    // DB init (non-fatal)
     let dbReady = true;
     try {
       await initDatabase();
     } catch (e) {
-      console.error('[Bot] DB Init Warning:', e);
+      console.error('[Bot] DB init warning:', e);
       dbReady = false;
     }
 
-    // 3. Extract Info
-    const userId = update.message?.from.id || update.callback_query?.from.id || 0;
+    const from = update.message?.from || update.callback_query?.from;
+    if (!from) return NextResponse.json({ ok: true });
+
+    const userId = from.id;
     const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id || 0;
 
-    // 4. Rate Limit
+    // Rate limit
     const now = Date.now();
-    const lastSeen = rateLimit.get(userId) || 0;
-    if (now - lastSeen < RATE_LIMIT_MS) return NextResponse.json({ ok: true });
+    if (now - (rateLimit.get(userId) || 0) < RATE_LIMIT_MS) return NextResponse.json({ ok: true });
     rateLimit.set(userId, now);
 
-    // 5. User Sync (Async - non-blocking)
+    // User sync (async non-blocking)
     if (dbReady && userId > 0) {
-      const username = update.message?.from.username || update.callback_query?.from.username;
-      const firstName = update.message?.from.first_name || update.callback_query?.from.first_name;
-
       findUserByTelegramId(userId).then(async (existing) => {
         if (!existing) {
-          await createUser(userId, username, firstName);
-          console.log(`[Bot] New User Registered: ${userId}`);
-          sendAdminLog(`New User: ${username || userId} (${userId})`);
+          await createUser(userId, from.username, from.first_name);
+          console.log(`[Bot] New user: ${userId} (@${from.username})`);
+          // Log new user registration
+          sendAdminLog(
+            `🆕 <b>New User Registered</b>\n` +
+            `<b>Name:</b> ${from.first_name}${from.username ? ` (@${from.username})` : ''}\n` +
+            `<b>ID:</b> <code>${userId}</code>`
+          );
         } else {
           await updateUser(userId, {
             last_active_at: new Date().toISOString(),
-            username: username || undefined
+            username: from.username || undefined,
           });
         }
-      }).catch(e => console.error('[Bot] User Sync Error:', e));
+      }).catch(e => console.error('[Bot] User sync error:', e));
     }
 
-    // --- MESSAGE PROCESSING ---
+    // ── Message handling ──────────────────────────────────────────────────────
     if (update.message?.text) {
       const text = update.message.text.trim();
       const isAdmin = isAdminUser(userId);
       const { hasAccess } = await verifyAccess(userId);
 
-      // Maintenance Mode Check (Fail gracefully)
       if (!dbReady && !isAdmin) {
-        await sendMessage(chatId, "⚠️ System maintenance. Please try again in 1 minute.");
+        await sendMessage(chatId, '⚙️ System maintenance. Try again in a minute.');
         return NextResponse.json({ ok: true });
       }
 
-      await sendTyping(chatId); // UX: Show bot is thinking
+      await sendTyping(chatId);
 
-      // Command Router
       if (text === '/start') {
-        await handleStart(userId, chatId, isAdmin, hasAccess);
-      } else if (text === 'ID' || text === '🆔 ID' || text === 'My ID' || text === '/id') {
-        await sendMessage(chatId, `🆔 <b>User ID:</b> <code>${userId}</code>\n\nStatus: <b>${isAdmin ? 'Admin' : (hasAccess ? 'Authorized' : 'Restricted')}</b>`);
-      } else if (text === 'Help' || text === '❓ Help' || text === '/help') {
+        await handleStart(userId, chatId, isAdmin, hasAccess, from);
+
+      } else if (text === '/id' || text === 'ID') {
+        await sendMessage(chatId,
+          `🆔 <b>Your Telegram ID</b>\n\n` +
+          `<code>${userId}</code>\n\n` +
+          `<b>Status:</b> ${isAdmin ? '🛡️ Admin' : (hasAccess ? '✅ Authorized' : '🔒 Restricted')}`
+        );
+
+      } else if (text === '/help' || text === 'Help') {
         const helpText = isAdmin
-          ? `🛡️ <b>Admin Command Center</b>\n\n/start - Launch Menu\n/stats - System Analytics\n/grant [id] - Authorize User\n/revoke [id] - Remove Access`
-          : `📚 <b>UMKM Terminal Guide</b>\n\nThis is a private deployment terminal for Base.\n\n<b>🔒 How to gain access:</b>\n1. Type /id to get your Telegram User ID.\n2. Copy and send your ID to the Administrator.\n3. Wait for authorization confirmation.\n4. Type /start to launch the terminal once approved.\n\n<i>Use the menu button to access quick commands.</i>`;
+          ? `🛡️ <b>Admin Commands</b>\n\n` +
+          `/start — Main menu\n` +
+          `/stats — System stats\n` +
+          `/grant [id] — Authorize user\n` +
+          `/revoke [id] — Revoke access\n` +
+          `/version — App version info`
+          : `📚 <b>Help</b>\n\n` +
+          `This is a private token deployment terminal.\n\n` +
+          `<b>To get access:</b>\n` +
+          `1. Use /id to get your Telegram User ID\n` +
+          `2. Send your ID to the admin\n` +
+          `3. Type /start once approved`;
         await sendMessage(chatId, helpText);
-      } else if (text === 'Launch Terminal' || text === '🖥 Launch Terminal' || text === '/terminal') {
-        // Handle "Launch Terminal" as text (fallback)
-        await sendMessage(chatId, "Click below to launch the terminal:", {
-          reply_markup: {
-            inline_keyboard: [[{ text: "🖥 Launch Terminal", web_app: { url: APP_URL }, style: 'success' }]]
-          }
-        });
-      } else if (text === 'Status' || text === '📊 Status' || text === '/stats') {
-        if (isAdmin) {
-          try {
-            const stats = await getUserStats();
-            await sendMessage(chatId, `📊 <b>System Statistics</b>\n\nUsers: ${stats.totalUsers}\nAuthorized: ${stats.usersWithAccess}\nDeployments: ${stats.totalDeployments}`);
-          } catch {
-            await sendMessage(chatId, "Error fetching stats.");
-          }
-        } else {
-          await sendMessage(chatId, "🟢 <b>Status: Online</b>\nSystem Operational");
+
+      } else if ((text === '/stats' || text === 'Status') && isAdmin) {
+        try {
+          const stats = await getUserStats();
+          await sendMessage(chatId,
+            `📊 <b>System Stats — v${APP_VERSION}</b>\n\n` +
+            `👥 Total Users: <b>${stats.totalUsers}</b>\n` +
+            `✅ Authorized: <b>${stats.usersWithAccess}</b>\n` +
+            `🚀 Deployments: <b>${stats.totalDeployments}</b>`
+          );
+        } catch {
+          await sendMessage(chatId, '❌ Error fetching stats.');
         }
+
+      } else if (text === '/version' && isAdmin) {
+        await sendMessage(chatId,
+          `📦 <b>UMKM Terminal</b>\n` +
+          `Version: <code>v${APP_VERSION}</code>\n` +
+          `Engine: Bankr AI Agent + x402\n` +
+          `Network: Base Mainnet`
+        );
+
       } else if (text.startsWith('/grant ') && isAdmin) {
         const targetId = parseInt(text.split(' ')[1]);
         if (!isNaN(targetId)) {
           await grantAccess(targetId);
           await sendMessage(chatId, `✅ Access granted to <code>${targetId}</code>`);
-          await sendMessage(targetId, `🎉 <b>Access Granted!</b>\n\nYou can now use the UMKM Terminal. Type /start to begin.`);
+          // Notify the user
+          await sendMessage(targetId,
+            `🎉 <b>Access Granted!</b>\n\nYou can now use the UMKM Terminal.\nType /start to open the launch menu.`
+          );
+          // Admin log
+          sendAdminLog(
+            `✅ <b>Access Granted</b>\n` +
+            `<b>By:</b> ${formatUser(from)} (<code>${userId}</code>)\n` +
+            `<b>To:</b> <code>${targetId}</code>`
+          );
         } else {
-          await sendMessage(chatId, "Usage: /grant [user_id]");
+          await sendMessage(chatId, 'Usage: /grant [user_id]');
         }
+
       } else if (text.startsWith('/revoke ') && isAdmin) {
         const targetId = parseInt(text.split(' ')[1]);
         if (!isNaN(targetId)) {
           await revokeAccess(targetId);
           await sendMessage(chatId, `🚫 Access revoked from <code>${targetId}</code>`);
+          sendAdminLog(
+            `🚫 <b>Access Revoked</b>\n` +
+            `<b>By:</b> ${formatUser(from)} (<code>${userId}</code>)\n` +
+            `<b>From:</b> <code>${targetId}</code>`
+          );
+        } else {
+          await sendMessage(chatId, 'Usage: /revoke [user_id]');
         }
-      } else {
-        // Unknown command
-        if (chatId === userId) { // Only in private chats
-          // Optional: Echo or ignore
-        }
+
+      } else if (chatId === userId) {
+        // Unknown command in private chat only — guide them
+        await sendMessage(chatId,
+          `Use /start to open the terminal menu, or /help for commands.`,
+          { reply_markup: { inline_keyboard: [[{ text: '🖥 Open Terminal', web_app: { url: APP_URL } }]] } }
+        );
       }
     }
 
-    // --- CALLBACK PROCESSING ---
+    // ── Callback handling ─────────────────────────────────────────────────────
     if (update.callback_query) {
-      const { id, data, from } = update.callback_query;
+      const { id, data, from: cbFrom } = update.callback_query;
 
-      if (data?.startsWith('copy_id_')) {
-        const targetId = data.split('_')[2];
-        await answerCallback(id, "ID Copied to clipboard!"); // Note: Telegram doesn't actually copy to clipboard from alert, but UX implies it if user taps.
-        await sendMessage(from.id, `<code>${targetId}</code>`); // Send ID as monospaced for easy copying
+      if (data?.startsWith('show_id_')) {
+        const targetId = data.replace('show_id_', '');
+        await answerCallback(id);
+        await sendMessage(cbFrom.id,
+          `🆔 <b>Your User ID</b>\n\n<code>${targetId}</code>\n\n<i>Copy and share this with the admin to request access.</i>`
+        );
+
       } else if (data === 'check_access') {
-        const { hasAccess } = await verifyAccess(from.id);
-        const msg = hasAccess ? "✅ Access Granted. You are ready." : "🚫 Authorization Required. Please contact admin.";
-        await answerCallback(id, msg, true); // Show alert
+        const { hasAccess } = await verifyAccess(cbFrom.id);
+        await answerCallback(id,
+          hasAccess ? '✅ Access confirmed! Type /start to begin.' : '🔒 No access yet. Contact the admin.',
+          true
+        );
+
+      } else if (data === 'admin_stats') {
+        try {
+          const stats = await getUserStats();
+          await answerCallback(id,
+            `Users: ${stats.totalUsers} | Auth: ${stats.usersWithAccess} | Deploys: ${stats.totalDeployments}`,
+            true
+          );
+        } catch {
+          await answerCallback(id, 'Stats unavailable.', true);
+        }
       }
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[Bot Fatal Error]:', error);
-    // Return 200 OK even on error to prevent Telegram from retrying endlessly
-    return NextResponse.json({ ok: true });
+    console.error('[Bot] Fatal error:', error);
+    return NextResponse.json({ ok: true }); // Always 200 to prevent Telegram retries
   }
 }
