@@ -8,10 +8,10 @@ function getEnv(key: string, fallback = '') {
 
 const APP_URL = getEnv('NEXT_PUBLIC_APP_URL', 'https://clanker-terminal.netlify.app');
 const APP_VERSION = '2.2.0';
-type BtnStyle = 'default' | 'primary' | 'secondary' | 'danger' | 'success';
 
-interface Btn { text: string; web_app?: { url: string }; callback_data?: string; style?: BtnStyle }
+interface Btn { text: string; web_app?: { url: string }; callback_data?: string; }
 interface TgUpdate {
+
   update_id: number;
   message?: { from: { id: number; first_name: string; username?: string }; chat: { id: number; type: string }; text?: string };
   callback_query?: { id: string; from: { id: number; first_name: string; username?: string }; message?: { chat: { id: number } }; data?: string };
@@ -97,8 +97,8 @@ export async function POST(req: NextRequest) {
           `👋 <b>Welcome, ${from.first_name}!</b>\n\n🔒 <b>Status: Restricted</b>\n\nYou need authorization. Share your ID with the admin.`,
           {
             reply_markup: kb([
-              [{ text: '🆔 Get My User ID', callback_data: `myid_${uid}`, style: 'primary' as BtnStyle }],
-              [{ text: '🔄 Check Access', callback_data: 'check_access', style: 'secondary' as BtnStyle }],
+              [{ text: '🆔 Get My User ID', callback_data: `myid_${uid}` }],
+              [{ text: '🔄 Check Access', callback_data: 'check_access' }],
             ])
           }
         );
@@ -107,14 +107,14 @@ export async function POST(req: NextRequest) {
         const icon = isAdmin ? '🛡️' : '✅';
         const label = isAdmin ? 'Admin' : 'Authorized';
         const adminRows: Btn[][] = isAdmin
-          ? [[{ text: '📊 Stats', callback_data: 'stats', style: 'secondary' as BtnStyle },
-          { text: '📦 v' + APP_VERSION, callback_data: 'ver', style: 'default' as BtnStyle }]]
+          ? [[{ text: '📊 Stats', callback_data: 'stats' },
+          { text: '📦 v' + APP_VERSION, callback_data: 'ver' }]]
           : [];
         await msg(chatId,
           `🚀 <b>UMKM Terminal v${APP_VERSION}</b>\n\n${icon} <b>${label}</b> · ${from.first_name}\n\n<i>Open the terminal to deploy tokens on Base.</i>`,
           {
             reply_markup: kb([
-              [{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' as BtnStyle }],
+              [{ text: '🖥 Open Terminal', web_app: { url: APP_URL } }],
               ...adminRows,
             ])
           }
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
         sendAdminLog(`🚫 Revoked ${tid} by ${from.first_name}`);
       }
     } else if (chatId === uid) {
-      await msg(chatId, 'Type /start', { reply_markup: kb([[{ text: '🖥 Open Terminal', web_app: { url: APP_URL }, style: 'success' as BtnStyle }]]) });
+      await msg(chatId, 'Type /start', { reply_markup: kb([[{ text: '🖥 Open Terminal', web_app: { url: APP_URL } }]]) });
     }
   }
 
