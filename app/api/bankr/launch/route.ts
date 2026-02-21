@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { bankrService } from '@/lib/bankr/sdk';
+import { clankerService, MevModuleType } from '@/lib/clanker/sdk';
 import { sweepFunds } from '@/lib/bankr/x402';
 import { sendAdminLog } from '@/lib/access-control';
 import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
 
         let txHash: string | undefined;
         let message: string = '';
-        const deployedViaFallback = false;
+        let deployedViaFallback = false;
 
         console.log(`[Bankr Launch API] Setting up Burner Wallet Proxy for ${data.name}...`);
 
@@ -173,8 +174,38 @@ export async function POST(request: NextRequest) {
             }
 
             if (lastError) {
-                console.error(`[Bankr Launch API] All ${MAX_RETRIES} attempts failed. Giving up.`);
-                throw lastError;
+                console.error(`[Bankr Launch API] All ${MAX_RETRIES} attempts failed. Initiating Clanker SDK Fallback...`);
+                sendAdminLog(`⚠️ <b>Bankr AI Failed</b>. Initiating Clanker SDK Fallback for $${data.symbol}...`);
+
+                // FALLBACK: Execute direct Clanker deployment using the burner wallet
+                const clankerResult = await clankerService.deployToken(burnerPk, {
+                    name: data.name,
+                    symbol: data.symbol,
+                    image: data.image || '',
+                    description: data.description || '',
+                    tokenAdmin: session.address,
+                    rewardRecipient: data.rewardRecipient,
+                }, {
+                    feeType: data.taxType === 'static' ? 'static' : 'dynamic',
+                    staticFeePercentage: data.taxType === 'static' ? data.taxPercentage : undefined,
+                    poolPositionType: 'Standard',
+                    mevModuleType: MevModuleType.BlockDelay,
+                    blockDelay: 2,
+                    salt: data.salt as `0x${string}` || undefined,
+                    platform: 'telegram',
+                    telegramUserId: session.telegramUserId,
+                });
+
+                if (!clankerResult.success) {
+                    console.error('[Bankr Fallback Error]', clankerResult.error);
+                    throw new Error(`Bankr API failed, and Clanker Fallback also failed: ${clankerResult.error}`);
+                }
+
+                txHash = clankerResult.txHash;
+                message = 'Bankr Agent was overwhelmed. Token successfully launched via direct Clanker Fallback.';
+                deployedViaFallback = true;
+
+                sendAdminLog(`✅ <b>Fallback Successful!</b>\n\n<b>Token:</b> ${data.name} ($${data.symbol})\n<b>Tx:</b> <a href="https://basescan.org/tx/${txHash}">${txHash?.substring(0, 10)}...</a>`);
             }
 
             // 4. Return Success

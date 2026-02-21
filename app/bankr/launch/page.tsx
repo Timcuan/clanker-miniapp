@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { z } from 'zod';
-import { 
-    Rocket, ArrowLeft, Image as ImageIcon, Twitter, 
-    CheckCircle2, ChevronDown, ChevronUp, Clipboard, 
-    Zap, ExternalLink, MessageCircle, Globe, Share2
+import {
+    Rocket, ArrowLeft, Image as ImageIcon, Twitter,
+    CheckCircle2, ChevronDown, ChevronUp, Clipboard,
+    Zap, ExternalLink, MessageCircle, Globe, Share2,
+    ShieldCheck, RotateCcw
 } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { CLIButton, StatusBadge } from '@/components/ui/CLIButton';
@@ -34,6 +35,8 @@ const bankrLaunchSchema = z.object({
     description: z.string().optional(),
     telegram: z.string().url('Must be a valid Telegram URL').optional().or(z.literal('')),
     website: z.string().url('Must be a valid website URL').optional().or(z.literal('')),
+    autoSweep: z.boolean().optional(),
+    customGasLimit: z.boolean().optional(),
 });
 
 type BankrLaunchFormParams = z.infer<typeof bankrLaunchSchema>;
@@ -133,11 +136,10 @@ function OptionSelector({
                                 onChange(opt);
                                 hapticFeedback('light');
                             }}
-                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border font-mono text-[10px] uppercase transition-all ${
-                                active 
-                                ? 'bg-orange-500/10 border-orange-500/50 text-orange-600 dark:text-orange-400 shadow-sm' 
+                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border font-mono text-[10px] uppercase transition-all ${active
+                                ? 'bg-orange-500/10 border-orange-500/50 text-orange-600 dark:text-orange-400 shadow-sm'
                                 : 'bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800 text-gray-400 hover:border-gray-200 dark:hover:border-gray-700'
-                            }`}
+                                }`}
                         >
                             {Icon && <Icon className={`w-3.5 h-3.5 ${active ? 'text-orange-500' : 'text-gray-400'}`} />}
                             {opt}
@@ -174,6 +176,8 @@ export default function BankrLaunchPage() {
         description: '',
         telegram: '',
         website: '',
+        autoSweep: true,
+        customGasLimit: false,
     });
 
     const [vanityEnabled, setVanityEnabled] = useState(false);
@@ -185,6 +189,23 @@ export default function BankrLaunchPage() {
     useEffect(() => {
         if (address && !formData.rewardRecipient) {
             setFormData(prev => ({ ...prev, rewardRecipient: address }));
+        }
+
+        // Load preferences from local storage
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('clanker_prefs');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    setFormData(prev => ({
+                        ...prev,
+                        autoSweep: parsed.autoSweep !== false, // Defaults to true
+                        customGasLimit: parsed.customGasLimit === true
+                    }));
+                }
+            } catch (e) {
+                console.error("Failed to load generic prefs");
+            }
         }
     }, [address]);
 
@@ -317,7 +338,7 @@ export default function BankrLaunchPage() {
                             </section>
 
                             {submitError && (
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
                                     className="p-4 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 flex gap-3 text-red-600 dark:text-red-400"
@@ -446,11 +467,10 @@ export default function BankrLaunchPage() {
                                                 <button
                                                     key={t}
                                                     onClick={() => setFormData({ ...formData, taxType: t as any })}
-                                                    className={`px-3 py-1.5 rounded-lg border font-mono text-[10px] uppercase transition-all ${
-                                                        formData.taxType === t 
-                                                        ? 'bg-orange-500 text-white border-orange-500 shadow-sm' 
+                                                    className={`px-3 py-1.5 rounded-lg border font-mono text-[10px] uppercase transition-all ${formData.taxType === t
+                                                        ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
                                                         : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-500'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {t}
                                                 </button>
@@ -498,13 +518,89 @@ export default function BankrLaunchPage() {
                                             hapticFeedback('medium');
                                             if (newVal) {
                                                 const randomPart = Array.from({ length: 61 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-                                                setFormData(p => ({ ...p, salt: '0xba3' + randomPart }));
+                                                const newSalt = '0xba3' + randomPart;
+                                                setFormData(p => ({ ...p, salt: newSalt }));
+                                            } else {
+                                                // Reset salt but keep it valid if it was empty? 
+                                                // Bankr SDK handles it if missing, but let's just leave it or reset to a random one.
                                             }
                                         }}
                                         className={`w-12 h-6 rounded-full transition-all relative ${vanityEnabled ? 'bg-orange-500 shadow-md' : 'bg-gray-200 dark:bg-gray-800'}`}
                                     >
                                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${vanityEnabled ? 'left-7' : 'left-1'}`} />
                                     </button>
+                                </div>
+
+                                {vanityEnabled && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="p-3 bg-white dark:bg-gray-950 border border-orange-200 dark:border-orange-500/20 rounded-xl"
+                                    >
+                                        <p className="font-mono text-[10px] text-gray-400 mb-1 uppercase tracking-wider font-bold">Generated Deployment Salt</p>
+                                        <div className="flex items-center justify-between">
+                                            <code className="text-[10px] text-orange-600 dark:text-orange-400 break-all">{formData.salt}</code>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(formData.salt || '');
+                                                    hapticFeedback('light');
+                                                }}
+                                                className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg"
+                                            >
+                                                <Clipboard className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* Technical Overrides Section */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between px-1">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldCheck className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="font-mono text-[10px] text-gray-500 uppercase font-bold tracking-tight">Deployment settings</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setFormData(p => ({ ...p, autoSweep: !p.autoSweep }));
+                                                hapticFeedback('light');
+                                            }}
+                                            className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${formData.autoSweep
+                                                ? 'bg-orange-500/5 border-orange-500/20'
+                                                : 'bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800'
+                                                }`}
+                                        >
+                                            <div className="text-left">
+                                                <p className="font-display font-bold text-xs">Auto-Sweep Residuals</p>
+                                                <p className="font-mono text-[10px] text-gray-500">Refund dust to main wallet</p>
+                                            </div>
+                                            <div className={`w-10 h-5 rounded-full relative transition-all ${formData.autoSweep ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'}`}>
+                                                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${formData.autoSweep ? 'left-5.5' : 'left-0.5'}`} />
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                setFormData(p => ({ ...p, customGasLimit: !p.customGasLimit }));
+                                                hapticFeedback('light');
+                                            }}
+                                            className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${formData.customGasLimit
+                                                ? 'bg-orange-500/5 border-orange-500/20'
+                                                : 'bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800'
+                                                }`}
+                                        >
+                                            <div className="text-left">
+                                                <p className="font-display font-bold text-xs">Priority Gas Mode</p>
+                                                <p className="font-mono text-[10px] text-gray-500">Force higher gas limits</p>
+                                            </div>
+                                            <div className={`w-10 h-5 rounded-full relative transition-all ${formData.customGasLimit ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-800'}`}>
+                                                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${formData.customGasLimit ? 'left-5.5' : 'left-0.5'}`} />
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -531,8 +627,8 @@ export default function BankrLaunchPage() {
                         >
                             <Terminal className="w-full max-w-sm">
                                 <div className="flex justify-center py-8">
-                                    <motion.div 
-                                        animate={{ rotate: 360 }} 
+                                    <motion.div
+                                        animate={{ rotate: 360 }}
                                         transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
                                         className="relative"
                                     >
@@ -560,19 +656,28 @@ export default function BankrLaunchPage() {
                             <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 mb-8 shadow-lg shadow-emerald-500/10">
                                 <CheckCircle2 className="w-10 h-10" />
                             </div>
-                            
-                            <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-2 text-center">Deployment Successful</h2>
-                            <p className="font-mono text-xs text-gray-500 text-center mb-8">Token has been launched and submitted for indexing.</p>
+
+                            <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-2 text-center">
+                                {resultData?.deployedViaFallback ? 'Fallback Launch Successful' : 'Deployment Successful'}
+                            </h2>
+                            <p className="font-mono text-xs text-gray-500 text-center mb-8">
+                                {resultData?.deployedViaFallback
+                                    ? 'Bankr Agent failed, but our SDK emergency fallback saved the mission.'
+                                    : 'Token has been launched and submitted for indexing.'}
+                            </p>
 
                             <Terminal className="w-full mb-8">
-                                <TerminalLine text="Agent Bankr: Mission accomplished." type="success" />
+                                <TerminalLine
+                                    text={resultData?.deployedViaFallback ? "Agent Bankr: OFFLINE. SDK: ACTIVE." : "Agent Bankr: Mission accomplished."}
+                                    type={resultData?.deployedViaFallback ? "warning" : "success"}
+                                />
                                 <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 mt-2 font-mono text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
                                     {resultData?.message || "Deployment parameters confirmed. Social links and metadata have been successfully bound to the smart contract."}
                                 </div>
                                 {resultData?.txHash && (
                                     <div className="mt-4 flex items-center justify-between p-3 bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-xl">
                                         <span className="font-mono text-[10px] text-gray-400">Transaction</span>
-                                        <a 
+                                        <a
                                             href={`https://basescan.org/tx/${resultData.txHash}`}
                                             target="_blank"
                                             rel="noreferrer"
