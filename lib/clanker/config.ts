@@ -35,8 +35,29 @@ export interface BuildConfigOptions {
   staticFeePercentage?: number;
   // Custom RPC configuration
   customRpcUrl?: string;
-  // Vanity suffix enable/disable
   vanity?: boolean;
+
+  // V4 Advanced Features
+  vault?: {
+    percentage: number;
+    lockupDuration: number;
+    vestingDuration: number;
+    recipient?: string;
+  };
+  airdrop?: {
+    amount: number;
+    merkleRoot: string;
+    lockupDuration: number;
+    vestingDuration: number;
+    admin?: string;
+  };
+  presale?: {
+    bps: number;
+  };
+  poolExtension?: {
+    address: string;
+    initData: string;
+  };
 }
 
 // Get platform-specific context
@@ -170,6 +191,37 @@ export function buildTokenConfig(
     config.salt = options.salt;
   } else if (options.vanity !== undefined) {
     config.vanity = options.vanity;
+  }
+
+  // Advanced V4 Features
+  if (options.vault) {
+    config.vault = {
+      percentage: options.vault.percentage,
+      lockupDuration: options.vault.lockupDuration,
+      vestingDuration: options.vault.vestingDuration,
+      ...(options.vault.recipient ? { recipient: options.vault.recipient as `0x${string}` } : {})
+    };
+  }
+
+  if (options.airdrop) {
+    config.airdrop = {
+      amount: options.airdrop.amount,
+      merkleRoot: options.airdrop.merkleRoot as `0x${string}`,
+      lockupDuration: options.airdrop.lockupDuration,
+      vestingDuration: options.airdrop.vestingDuration,
+      ...(options.airdrop.admin ? { admin: options.airdrop.admin as `0x${string}` } : {})
+    };
+  }
+
+  if (options.presale) {
+    config.presale = { bps: options.presale.bps };
+  }
+
+  if (options.poolExtension) {
+    config.poolExtension = {
+      address: options.poolExtension.address as `0x${string}`,
+      initData: options.poolExtension.initData as `0x${string}`
+    };
   }
 
   return config;

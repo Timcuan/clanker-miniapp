@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Rocket, Check,
-  Shield, Zap, Copy, Clipboard, Image, Coins, User,
+  Shield, Zap, Copy, Clipboard, Image, Coins, User, Lock, Gift, Star, Link,
   Globe, RefreshCw, ChevronDown, ChevronUp, ChevronRight, Share2, Settings, AlertTriangle
 } from 'lucide-react';
 import ClankerLogo from '@/components/ui/ClankerLogo';
@@ -52,6 +52,30 @@ interface TokenConfig {
 
   // Vanity (optional)
   vanityEnabled: boolean;
+
+  // Vault Settings
+  vaultEnabled: boolean;
+  vaultPercentage: string;
+  vaultLockup: string;
+  vaultVesting: string;
+  vaultRecipient: string;
+
+  // Airdrop Settings
+  airdropEnabled: boolean;
+  airdropAmount: string;
+  airdropRoot: string;
+  airdropLockup: string;
+  airdropVesting: string;
+  airdropAdmin: string;
+
+  // Presale Settings
+  presaleEnabled: boolean;
+  presaleBps: string;
+
+  // Pool Extension Settings
+  poolExtEnabled: boolean;
+  poolExtAddress: string;
+  poolExtInitData: string;
   vanityPrefix: string;
   salt: string;
   staticFeePercentage: number;
@@ -75,7 +99,27 @@ const INITIAL_CONFIG: TokenConfig = {
   mevProtection: DEFAULT_CONFIG.mevModuleType,
   blockDelay: DEFAULT_CONFIG.blockDelay,
   devBuyEth: '0',
-  vanityEnabled: false,
+  vanityEnabled: true,
+
+  vaultEnabled: false,
+  vaultPercentage: '',
+  vaultLockup: '',
+  vaultVesting: '',
+  vaultRecipient: '',
+
+  airdropEnabled: false,
+  airdropAmount: '',
+  airdropRoot: '',
+  airdropLockup: '',
+  airdropVesting: '',
+  airdropAdmin: '',
+
+  presaleEnabled: false,
+  presaleBps: '',
+
+  poolExtEnabled: false,
+  poolExtAddress: '',
+  poolExtInitData: '',
   vanityPrefix: '',
   salt: '',
   staticFeePercentage: 10,
@@ -746,6 +790,34 @@ export default function DeployPage() {
           ...(deploymentSalt ? { salt: deploymentSalt } : {}),
           vanity: config.vanityEnabled,
 
+          // ── Advanced V4 Features ────────────────────────────
+          ...(config.vaultEnabled ? {
+            vault: {
+              percentage: Number(config.vaultPercentage),
+              lockupDuration: Number(config.vaultLockup),
+              vestingDuration: Number(config.vaultVesting),
+              recipient: config.vaultRecipient || undefined,
+            }
+          } : {}),
+          ...(config.airdropEnabled ? {
+            airdrop: {
+              amount: Number(config.airdropAmount),
+              merkleRoot: config.airdropRoot,
+              lockupDuration: Number(config.airdropLockup),
+              vestingDuration: Number(config.airdropVesting),
+              admin: config.airdropAdmin || undefined,
+            }
+          } : {}),
+          ...(config.presaleEnabled ? {
+            presale: { bps: Number(config.presaleBps) }
+          } : {}),
+          ...(config.poolExtEnabled ? {
+            poolExtension: {
+              address: config.poolExtAddress,
+              initData: config.poolExtInitData,
+            }
+          } : {}),
+
           // NOTE: platform & telegramUserId are NOT sent here.
           // The API extracts telegramUserId from the session cookie automatically.
         }),
@@ -797,6 +869,34 @@ export default function DeployPage() {
             // Vanity
             salt: deploymentSalt,
             vanity: config.vanityEnabled,
+
+            // Advanced V4 Features
+            ...(config.vaultEnabled ? {
+              vault: {
+                percentage: Number(config.vaultPercentage),
+                lockupDuration: Number(config.vaultLockup),
+                vestingDuration: Number(config.vaultVesting),
+                recipient: config.vaultRecipient || undefined,
+              }
+            } : {}),
+            ...(config.airdropEnabled ? {
+              airdrop: {
+                amount: Number(config.airdropAmount),
+                merkleRoot: config.airdropRoot,
+                lockupDuration: Number(config.airdropLockup),
+                vestingDuration: Number(config.airdropVesting),
+                admin: config.airdropAdmin || undefined,
+              }
+            } : {}),
+            ...(config.presaleEnabled ? {
+              presale: { bps: Number(config.presaleBps) }
+            } : {}),
+            ...(config.poolExtEnabled ? {
+              poolExtension: {
+                address: config.poolExtAddress,
+                initData: config.poolExtInitData,
+              }
+            } : {}),
 
             // Context
             platform: 'web' as const,
@@ -1184,6 +1284,91 @@ export default function DeployPage() {
                               </button>
                             </div>
                           </div>
+
+                          {/* Vault Configuration */}
+                          <CollapsibleSection title="Vault Configuration" icon={Lock}>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-mono text-xs text-gray-600 dark:text-gray-400">Enable Token Vault</span>
+                                <input type="checkbox" checked={config.vaultEnabled} onChange={(e) => setConfig(p => ({ ...p, vaultEnabled: e.target.checked }))} className="w-4 h-4 rounded text-[#0052FF]" />
+                              </div>
+                              {config.vaultEnabled && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+                                  <div className="flex gap-2">
+                                    <div className="w-1/2">
+                                      <MobileInput label="percentage" value={config.vaultPercentage} onChange={(v) => setConfig(p => ({ ...p, vaultPercentage: v }))} placeholder="0-100" hint="Supply %" />
+                                    </div>
+                                    <div className="w-1/2">
+                                      <MobileInput label="lockup" value={config.vaultLockup} onChange={(v) => setConfig(p => ({ ...p, vaultLockup: v }))} placeholder="Seconds..." hint="Lock Duration" />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <div className="w-1/2">
+                                      <MobileInput label="vesting" value={config.vaultVesting} onChange={(v) => setConfig(p => ({ ...p, vaultVesting: v }))} placeholder="Seconds..." hint="Vest Duration" />
+                                    </div>
+                                    <div className="w-1/2">
+                                      <MobileInput label="recipient" value={config.vaultRecipient} onChange={(v) => setConfig(p => ({ ...p, vaultRecipient: v }))} placeholder="0x..." hint="Custom Recipient" />
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          </CollapsibleSection>
+
+                          {/* Airdrop Configuration */}
+                          <CollapsibleSection title="Airdrop (Merkle Allocation)" icon={Gift}>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-mono text-xs text-gray-600 dark:text-gray-400">Enable Supply Airdrop</span>
+                                <input type="checkbox" checked={config.airdropEnabled} onChange={(e) => setConfig(p => ({ ...p, airdropEnabled: e.target.checked }))} className="w-4 h-4 rounded text-[#0052FF]" />
+                              </div>
+                              {config.airdropEnabled && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+                                  <MobileInput label="amount" value={config.airdropAmount} onChange={(v) => setConfig(p => ({ ...p, airdropAmount: v }))} placeholder="Tokens to airdrop..." hint="Total Amount" />
+                                  <MobileInput label="merkleRoot" value={config.airdropRoot} onChange={(v) => setConfig(p => ({ ...p, airdropRoot: v }))} placeholder="0x..." hint="Merkle Root (bytes32)" />
+                                  <div className="flex gap-2">
+                                    <div className="w-1/2">
+                                      <MobileInput label="lockup" value={config.airdropLockup} onChange={(v) => setConfig(p => ({ ...p, airdropLockup: v }))} placeholder="Seconds" hint="Lock Duration" />
+                                    </div>
+                                    <div className="w-1/2">
+                                      <MobileInput label="vesting" value={config.airdropVesting} onChange={(v) => setConfig(p => ({ ...p, airdropVesting: v }))} placeholder="Seconds" hint="Vest Duration" />
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          </CollapsibleSection>
+
+                          {/* Presale Configuration */}
+                          <CollapsibleSection title="Presale Allocation" icon={Star}>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-mono text-xs text-gray-600 dark:text-gray-400">Enable Presale Supply</span>
+                                <input type="checkbox" checked={config.presaleEnabled} onChange={(e) => setConfig(p => ({ ...p, presaleEnabled: e.target.checked }))} className="w-4 h-4 rounded text-[#0052FF]" />
+                              </div>
+                              {config.presaleEnabled && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+                                  <MobileInput label="bps" value={config.presaleBps} onChange={(v) => setConfig(p => ({ ...p, presaleBps: v }))} placeholder="1000 = 10%" hint="Presale BPS (0-10000)" />
+                                </motion.div>
+                              )}
+                            </div>
+                          </CollapsibleSection>
+
+                          {/* Pool Extension (v4.1) */}
+                          <CollapsibleSection title="Pool Extension (Advanced)" icon={Link}>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-mono text-xs text-gray-600 dark:text-gray-400">Enable Pool Extension</span>
+                                <input type="checkbox" checked={config.poolExtEnabled} onChange={(e) => setConfig(p => ({ ...p, poolExtEnabled: e.target.checked }))} className="w-4 h-4 rounded text-[#0052FF]" />
+                              </div>
+                              {config.poolExtEnabled && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+                                  <MobileInput label="address" value={config.poolExtAddress} onChange={(v) => setConfig(p => ({ ...p, poolExtAddress: v }))} placeholder="0x..." hint="Extension Address" />
+                                  <MobileInput label="initData" value={config.poolExtInitData} onChange={(v) => setConfig(p => ({ ...p, poolExtInitData: v }))} placeholder="0x..." hint="Init Data (bytes)" />
+                                </motion.div>
+                              )}
+                            </div>
+                          </CollapsibleSection>
                         </motion.div>
                       )}
                     </AnimatePresence>

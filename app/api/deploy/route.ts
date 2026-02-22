@@ -30,6 +30,28 @@ const DeploySchema = z.object({
     staticFeePercentage: z.number().min(0).max(50).optional(),
     customRpcUrl: z.string().url().optional(),
     vanity: z.boolean().optional(),
+
+    // V4 Advanced Features
+    vault: z.object({
+        percentage: z.number().min(0).max(100),
+        lockupDuration: z.number().min(0),
+        vestingDuration: z.number().min(0),
+        recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional()
+    }).optional(),
+    airdrop: z.object({
+        amount: z.number().min(0),
+        merkleRoot: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        lockupDuration: z.number().min(0),
+        vestingDuration: z.number().min(0),
+        admin: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional()
+    }).optional(),
+    presale: z.object({
+        bps: z.number().min(0).max(10000)
+    }).optional(),
+    poolExtension: z.object({
+        address: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+        initData: z.string()
+    }).optional(),
 });
 
 export async function POST(request: NextRequest) {
