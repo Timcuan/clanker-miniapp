@@ -8,7 +8,7 @@ function getEnv(key: string, fallback = '') {
 }
 
 const APP_URL = getEnv('NEXT_PUBLIC_APP_URL', 'https://clanker-terminal.netlify.app');
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 
 interface Btn { text: string; web_app?: { url: string }; callback_data?: string; }
 interface TgUpdate {
@@ -207,7 +207,9 @@ export async function POST(req: NextRequest) {
 
     } catch (e: any) {
       console.error('[tg-photo-handler]', e);
-      await msg(chatId, `❌ <b>Failed to process image:</b> ${e.message}`);
+      let errorMsg = e.message;
+      if (e.name === 'AbortError') errorMsg = 'Processing timed out. The image might be too large or the network is congested.';
+      await msg(chatId, `❌ <b>Failed to process image:</b> ${errorMsg}\n\n<i>Please try again with a smaller file or a different image.</i>`);
     }
   }
 

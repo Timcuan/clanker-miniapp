@@ -1,10 +1,22 @@
 export class IPFSService {
-    // Public developer keys for resilient free image hosts
     private readonly FREEIMAGE_KEY = '6d207e02198a847aa98d0a2a901485a5';
+    private readonly MAX_SIZE = 5 * 1024 * 1024; // 5MB limit
+    private readonly TIMEOUT_MS = 20000; // 20s timeout
 
-    /**
-     * Sanitizes and extracts the pure Base64 payload or URL from the input.
-     */
+    private async fetchWithTimeout(url: string, options: any = {}) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            return response;
+        } finally {
+            clearTimeout(id);
+        }
+    }
+
     private preparePayload(imageData: string): { type: 'url' | 'base64', payload: string } {
         const trimmed = imageData.trim();
         if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -23,26 +35,24 @@ export class IPFSService {
         throw new Error('Invalid payload: Must be a valid HTTP(S) URL or Base64 encoded string.');
     }
 
-    /**
-     * Fetch image bytes either from external URL or Base64 string.
-     */
-    private async getBufferProps(type: 'url' | 'base64', payload: string): Promise<Buffer> {
+    private async getBuffer(type: 'url' | 'base64', payload: string): Promise<Buffer> {
+        let buffer: Buffer;
         if (type === 'base64') {
-            return Buffer.from(payload, 'base64');
+            buffer = Buffer.from(payload, 'base64');
+        } else {
+            const response = await this.fetchWithTimeout(payload);
+            if (!response.ok) throw new Error(`Failed to fetch image from URL: ${response.statusText}`);
+            const arrayBuffer = await response.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
         }
-        // Download from URL
-        const response = await fetch(payload);
-        if (!response.ok) throw new Error(`Failed to fetch image from URL: ${response.statusText}`);
-        const arrayBuffer = await response.arrayBuffer();
-        return Buffer.from(arrayBuffer);
+
+        if (buffer.length > this.MAX_SIZE) {
+            throw new Error(`Image is too large (${(buffer.length / 1024 / 1024).toFixed(2)}MB). Max 5MB allowed.`);
+        }
+        return buffer;
     }
 
-    /**
-     * Primary Provider: The Graph Public IPFS Node
-     * 
-     * Returns: A genuine IPFS CID (Qm...) string.
-     */
-    private async uploadToTheGraph(buffer: Buffer): Promise<string> {
+    private async tryUploadToTheGraph(buffer: Buffer): Promise<string> {
         const boundary = '----WebKitFormBoundary7MAbn372Z8qYn8xO';
         const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="image.png"\r\nContent-Type: image/png\r\n\r\n`;
         const footer = `\r\n--${boundary}--\r\n`;
@@ -53,7 +63,7 @@ export class IPFSService {
             Buffer.from(footer, 'utf8')
         ]);
 
-        const res = await fetch('https://api.thegraph.com/ipfs/api/v0/add', {
+        const res = await this.fetchWithTimeout('https://api.thegraph.com/ipfs/api/v0/add', {
             method: 'POST',
             headers: {
                 'Content-Type': `multipart/form-data; boundary=${boundary}`,
@@ -63,16 +73,10 @@ export class IPFSService {
 
         if (!res.ok) throw new Error(`TheGraph IPFS HTTP ${res.status}`);
         const json = await res.json();
-        if (json?.Hash) {
-            // Return the specific CID expected by Clanker and Blockchain Ecosystems
-            return json.Hash;
-        }
-        throw new Error(`Invalid TheGraph IPFS Response: ${JSON.stringify(json)}`);
+        if (json?.Hash) return json.Hash;
+        throw new Error('Invalid TheGraph Response');
     }
 
-    /**
-     * Fallback Provider: FreeImage.host (Web2 URL)
-     */
     private async uploadToFreeImage(payload: string): Promise<string> {
         const body = new URLSearchParams();
         body.append('key', this.FREEIMAGE_KEY);
@@ -80,7 +84,7 @@ export class IPFSService {
         body.append('format', 'json');
         body.append('source', payload);
 
-        const res = await fetch('https://freeimage.host/api/1/upload', {
+        const res = await this.fetchWithTimeout('https://freeimage.host/api/1/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body.toString()
@@ -88,58 +92,42 @@ export class IPFSService {
 
         if (!res.ok) throw new Error(`FreeImage HTTP ${res.status}`);
         const json = await res.json();
-        if (json?.status_code === 200 && json?.image?.url) {
-            return json.image.url;
-        }
+        if (json?.status_code === 200 && json?.image?.url) return json.image.url;
         throw new Error('Invalid FreeImage Response');
     }
 
-    /**
-     * Uploads an image to public IPFS to acquire a genuine CID (Qm...) or falls back to standard HTTPS url.
-     * 
-     * @returns Object containing the raw URI and a resolved HTTPS gateway URL.
-     */
     async uploadImage(imageData: string, filename: string = 'image.png'): Promise<{ ipfsUrl: string; gatewayUrl: string }> {
-        try {
-            if (!imageData || imageData.length < 10) {
-                throw new Error('imageData is empty or too short.');
-            }
+        const { type, payload } = this.preparePayload(imageData);
+        const buffer = await this.getBuffer(type, payload);
 
-            const { type, payload } = this.preparePayload(imageData);
-
-            // Attempt 1: The Graph IPFS (Strict CID request string requirements)
+        // Hardened Multi-try with Backoff for IPFS
+        let lastError = '';
+        for (let i = 0; i < 3; i++) {
             try {
-                const buffer = await this.getBufferProps(type, payload);
-                const cid = await this.uploadToTheGraph(buffer);
-
+                const cid = await this.tryUploadToTheGraph(buffer);
                 return {
                     ipfsUrl: `ipfs://${cid}`,
                     gatewayUrl: `https://ipfs.io/ipfs/${cid}`
                 };
-            } catch (ipfsError: any) {
-                console.warn(`[IPFSService] Primary IPFS Upload Failed (${ipfsError.message}). Failing over to FreeImage Web2 host...`);
+            } catch (e: any) {
+                lastError = e.message;
+                console.warn(`[IPFSService] IPFS Attempt ${i + 1} failed: ${lastError}`);
+                if (i < 2) await new Promise(r => setTimeout(r, 1000 * (i + 1)));
             }
-
-            // Attempt 2: FreeImage redundancy backup 
-            const web2Url = await this.uploadToFreeImage(payload);
-            const secureUrl = web2Url.replace('http://', 'https://');
-
-            return {
-                ipfsUrl: secureUrl, // Some contracts accept standard HTTPS URLs
-                gatewayUrl: secureUrl
-            };
-
-        } catch (err: any) {
-            console.error('[IPFSService] CRITICAL: All image upload engines failed.', err.message);
-            throw new Error(`Image Upload Failed: ${err.message}`);
         }
+
+        // Failover to Web2
+        console.warn(`[IPFSService] Primary IPFS failed 3 times. Failing over to Web2 fallback.`);
+        const web2Url = await this.uploadToFreeImage(payload);
+        const secureUrl = web2Url.replace('http://', 'https://');
+        return {
+            ipfsUrl: secureUrl,
+            gatewayUrl: secureUrl
+        };
     }
 
-    /**
-     * File upload shim
-     */
     async uploadFile(file: File): Promise<{ ipfsUrl: string; gatewayUrl: string }> {
-        throw new Error("uploadFile is unsupported without polyfill. Use uploadImage with Base64 instead.");
+        throw new Error("uploadFile is unsupported. Use uploadImage with Base64.");
     }
 }
 
