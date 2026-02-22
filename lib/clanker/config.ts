@@ -78,8 +78,8 @@ export function buildTokenConfig(
   const rewardRecipient = input.rewardRecipient as `0x${string}`;
 
   // Calculate reward BPS (basis points)
-  // Default: 0% to creator (tokenAdmin), 100% to interface (rewardRecipient)
-  // Note: creatorReward is passed as %, so we verify bounds
+  // Creator Reward % goes to Token Admin.
+  // The remaining % goes to the Reward Recipient (Platform/Referrer)
   const safeCreatorReward = Math.min(Math.max(creatorReward, 0), 100);
   const creatorBps = safeCreatorReward * 100;
   const interfaceBps = 10000 - creatorBps;
@@ -133,13 +133,13 @@ export function buildTokenConfig(
       recipients: [
         {
           admin: tokenAdmin,
-          recipient: rewardRecipient,
+          recipient: tokenAdmin, // Creator gets their % directly
           bps: creatorBps,
           token: 'Both',
         },
         {
-          admin: INTERFACE_ADMIN,
-          recipient: INTERFACE_REWARD_RECIPIENT,
+          admin: tokenAdmin, // Admin manages the referral fee
+          recipient: rewardRecipient, // Remainder goes to the frontend/referral recipient
           bps: interfaceBps,
           token: 'Both',
         },
