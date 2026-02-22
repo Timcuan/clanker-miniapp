@@ -732,6 +732,7 @@ export default function DeployPage() {
           // ── Economics ───────────────────────────────────────
           creatorReward: Number(config.creatorReward),
           feeType: config.feeType,
+          staticFeePercentage: config.feeType === 'static' ? config.staticFeePercentage : undefined,
           poolPosition: config.poolPosition,
 
           // ── MEV & Safety ────────────────────────────────────
@@ -743,6 +744,7 @@ export default function DeployPage() {
 
           // ── Vanity ──────────────────────────────────────────
           ...(deploymentSalt ? { salt: deploymentSalt } : {}),
+          vanity: config.vanityEnabled,
 
           // NOTE: platform & telegramUserId are NOT sent here.
           // The API extracts telegramUserId from the session cookie automatically.
@@ -782,7 +784,7 @@ export default function DeployPage() {
             // Fee & pool
             feeType: config.feeType,
             poolPosition: config.poolPosition,
-            staticFeePercentage: config.staticFeePercentage,
+            staticFeePercentage: config.feeType === 'static' ? config.staticFeePercentage : undefined,
 
             // MEV protection
             mevProtection: config.mevProtection === MevModuleType.BlockDelay ? 'BlockDelay' : 'None' as 'BlockDelay' | 'None',
@@ -794,6 +796,7 @@ export default function DeployPage() {
 
             // Vanity
             salt: deploymentSalt,
+            vanity: config.vanityEnabled,
 
             // Context
             platform: 'web' as const,

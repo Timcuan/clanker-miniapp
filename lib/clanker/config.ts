@@ -35,6 +35,8 @@ export interface BuildConfigOptions {
   staticFeePercentage?: number;
   // Custom RPC configuration
   customRpcUrl?: string;
+  // Vanity suffix enable/disable
+  vanity?: boolean;
 }
 
 // Get platform-specific context
@@ -166,6 +168,8 @@ export function buildTokenConfig(
   // Add custom salt if provided (Vanity)
   if (options.salt) {
     config.salt = options.salt;
+  } else if (options.vanity !== undefined) {
+    config.vanity = options.vanity;
   }
 
   return config;

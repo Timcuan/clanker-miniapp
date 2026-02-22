@@ -27,7 +27,9 @@ const DeploySchema = z.object({
     blockDelay: z.number().min(0).max(20),
     devBuyEth: z.number().min(0),
     salt: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+    staticFeePercentage: z.number().min(0).max(50).optional(),
     customRpcUrl: z.string().url().optional(),
+    vanity: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -77,6 +79,8 @@ export async function POST(request: NextRequest) {
             creatorReward: data.creatorReward,
             devBuyEth: data.devBuyEth,
             salt: data.salt as `0x${string}` || undefined,
+            staticFeePercentage: data.staticFeePercentage,
+            vanity: data.vanity,
             customRpcUrl: data.customRpcUrl,
 
             // Context

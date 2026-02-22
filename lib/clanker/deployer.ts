@@ -23,6 +23,7 @@ export interface DeployTokenConfig extends TokenInputData {
   creatorReward?: number; // 0-100%
   salt?: `0x${string}`;
   staticFeePercentage?: number;
+  vanity?: boolean;
 
   // Platform context
   platform?: 'telegram' | 'web' | string;
