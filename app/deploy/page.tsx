@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Rocket, Check, AlertCircle, ChevronDown, ChevronUp,
-  Shield, Zap, Copy, ExternalLink, Clipboard, Image, User, Coins,
-  Globe, MessageCircle, FileText, Info, RefreshCw, ChevronRight, Share2, Settings, AlertTriangle
+  ArrowLeft, Rocket, Check,
+  Shield, Zap, Copy, Clipboard, Image, Coins, User,
+  Globe, RefreshCw, ChevronDown, ChevronUp, ChevronRight, Share2, Settings, AlertTriangle
 } from 'lucide-react';
 import ClankerLogo from '@/components/ui/ClankerLogo';
 import { useTelegramContext } from '@/components/layout/TelegramProvider';
 import { useWallet } from '@/contexts/WalletContext';
 import { showBackButton, hideBackButton, hapticFeedback } from '@/lib/telegram/webapp';
-import { Terminal, TerminalLine, TerminalLoader } from '@/components/ui/Terminal';
-import { CLIButton, CLICard, StatusBadge } from '@/components/ui/CLIButton';
+import { Terminal, TerminalLine } from '@/components/ui/Terminal';
+import { CLIButton, StatusBadge } from '@/components/ui/CLIButton';
 import { shortenAddress, copyToClipboard } from '@/lib/utils';
 import { MevModuleType, DEFAULT_CONFIG } from '@/lib/clanker/constants';
 
@@ -89,8 +89,6 @@ interface DeployResult {
   id: string;
 }
 
-// Social platforms supported by Clanker
-const SOCIAL_PLATFORMS = ['x', 'telegram', 'discord', 'website', 'farcaster', 'github'] as const;
 
 /**
  * Convert various image input formats to ipfs:// URL
@@ -369,13 +367,28 @@ import { base } from 'viem/chains';
 
 export default function DeployPage() {
   const router = useRouter();
-  const { isAuthenticated, formattedAddress, balance, address } = useWallet();
-  const { isTelegram } = useTelegramContext();
+  const { isAuthenticated, formattedAddress, balance, address, telegramUserId: walletTelegramUserId } = useWallet();
+  const { isTelegram, user: tgUser } = useTelegramContext();
 
+  const telegramUserId = walletTelegramUserId || tgUser?.id || 0;
+
+  // ── All state declarations grouped together ──────────────────────────────
   const [step, setStep] = useState<DeployStep>('form');
   const [config, setConfig] = useState<TokenConfig>(INITIAL_CONFIG);
   const [isLoaded, setIsLoaded] = useState(false);
   const [ethPrice, setEthPrice] = useState<number | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deployLogs, setDeployLogs] = useState<string[]>([]);
+  const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [templateLoaded, setTemplateLoaded] = useState(false);
+  const [isAdvanced, setIsAdvanced] = useState(false);
+  const [activeLocalWallet, setActiveLocalWallet] = useState<{ address: string; label: string } | null>(null);
+  const [localBalance, setLocalBalance] = useState<string | null>(null);
+
+
+  // ── All effects follow state declarations ────────────────────────────────
 
   // Fetch ETH Price
   useEffect(() => {
@@ -413,22 +426,17 @@ export default function DeployPage() {
     if (!isLoaded) return;
 
     if (config.vanityEnabled) {
-      // Logic: Vanity ON = B07 standard
-      // Always regenerate salt if it's not a valid B07 salt
       if (!config.salt || !config.salt.startsWith('0xb07')) {
         const randomPart = Array.from({ length: 61 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        const b07Salt = '0xb07' + randomPart;
-        setConfig(p => ({ ...p, salt: b07Salt }));
+        setConfig(p => ({ ...p, salt: '0xb07' + randomPart }));
       }
     } else {
-      // Logic: Vanity OFF = Random Address/Salt
-      // Only randomize if it was B07 or empty
       if (!config.salt || config.salt.startsWith('0xb07')) {
         const fullRandom = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
         setConfig(p => ({ ...p, salt: fullRandom }));
       }
     }
-  }, [config.vanityEnabled, isLoaded]); // Removed config.salt to prevent loops
+  }, [config.vanityEnabled, isLoaded]);
 
   // Persistence: Save to localStorage on change
   useEffect(() => {
@@ -436,19 +444,6 @@ export default function DeployPage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     }
   }, [config, isLoaded]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [deployLogs, setDeployLogs] = useState<string[]>([]);
-  const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [templateLoaded, setTemplateLoaded] = useState(false);
-  const [isAdvanced, setIsAdvanced] = useState(false);
-
-  const [activeLocalWallet, setActiveLocalWallet] = useState<{ address: string; label: string } | null>(null);
-  const [localBalance, setLocalBalance] = useState<string | null>(null);
-
-  // Debounced config for validation
-  const debouncedConfig = useDebounce(config, 300);
 
   const fetchBalance = async (address: string) => {
     try {
@@ -614,15 +609,12 @@ export default function DeployPage() {
     setDeployLogs(prev => [...prev, msg]);
   }, []);
 
-  const copyToClipboard = async (text: string, field: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(field);
-      hapticFeedback('success');
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch (err) {
-      console.error('Copy failed:', err);
-    }
+  // NOTE: copyToClipboard is imported from @/lib/utils
+  // Wrapper to also set the copiedField UI state
+  const handleCopy = async (text: string, field: string) => {
+    await copyToClipboard(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleReview = () => {
@@ -709,85 +701,144 @@ export default function DeployPage() {
     addLog('Building transaction...');
     await new Promise(r => setTimeout(r, 500));
 
+    // Validate and normalize salt (must match /^0x[a-fA-F0-9]{64}$/ or be undefined)
+    const deploymentSalt = /^0x[a-fA-F0-9]{64}$/.test(config.salt)
+      ? (config.salt as `0x${string}`)
+      : undefined;
+
+    const performRelayDeploy = async (
+      tokenAdmin: string,
+      rewardRecipient: string,
+      imageUrl: string,
+      socialMediaUrls: Array<{ platform: string; url: string }>
+    ) => {
+      addLog('Routing via Server-Relay...');
+      const response = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // sends session cookie for auth + telegramUserId
+        body: JSON.stringify({
+          // ── Token Identity ──────────────────────────────────
+          name: config.name,
+          symbol: config.symbol.toUpperCase(),
+          image: imageUrl || undefined,
+          description: config.description || undefined,
+          socialMediaUrls: socialMediaUrls.length > 0 ? socialMediaUrls : undefined,
+
+          // ── Addresses ───────────────────────────────────────
+          tokenAdmin,
+          rewardRecipient,
+
+          // ── Economics ───────────────────────────────────────
+          creatorReward: Number(config.creatorReward),
+          feeType: config.feeType,
+          poolPosition: config.poolPosition,
+
+          // ── MEV & Safety ────────────────────────────────────
+          mevProtection: config.mevProtection, // MevModuleType enum matches Zod nativeEnum
+          blockDelay: Number(config.blockDelay),
+
+          // ── Dev Buy ─────────────────────────────────────────
+          devBuyEth: parseFloat(config.devBuyEth) || 0,
+
+          // ── Vanity ──────────────────────────────────────────
+          ...(deploymentSalt ? { salt: deploymentSalt } : {}),
+
+          // NOTE: platform & telegramUserId are NOT sent here.
+          // The API extracts telegramUserId from the session cookie automatically.
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        const errMsg = data.details
+          ? `${data.error}: ${JSON.stringify(data.details)}`
+          : (data.error || 'Server deployment failed');
+        throw new Error(errMsg);
+      }
+      return data;
+    };
+
     try {
       let resultData;
 
       if (activeLocalWallet) {
-        // --- CLIENT SIDE DEPLOYMENT ---
+        // ── LOCAL SIGNING PATH ─────────────────────────────────────────────
         addLog('Signing transaction locally...');
-        // Dynamically import to ensure client-side compatibility if needed, 
-        // or just assume the import at top works. 
-        // We will use the import at the top.
-        const { deployToken } = await import('@/lib/clanker/deployer');
+        try {
+          const { deployToken } = await import('@/lib/clanker/deployer');
 
-        const result = await deployToken(activeLocalWallet.privateKey, {
-          ...config,
-          symbol: config.symbol.toUpperCase(),
-          image: imageUrl,
-          socialMediaUrls,
-          tokenAdmin,
-          rewardRecipient,
-          platform: 'web', // or 'telegram-miniapp' if detected
-          // Ensure numeric types
-          creatorReward: Number(config.creatorReward),
-          blockDelay: Number(config.blockDelay),
-          devBuyEth: Number(config.devBuyEth) || 0,
-          salt: config.salt as `0x${string}` || undefined,
-          // Map enum to string literal explicitly
-          mevProtection: config.mevProtection === MevModuleType.BlockDelay ? 'BlockDelay' : 'None',
-        });
-
-        if (!result.success || !result.tokenAddress) {
-          throw new Error(result.error || 'Deployment failed locally');
-        }
-
-        resultData = {
-          txHash: result.txHash,
-          tokenAddress: result.tokenAddress,
-          id: 'local-' + Date.now(),
-          verified: true // Assumed since SDK handles it
-        };
-
-      } else {
-        // --- SERVER SIDE FALLBACK ---
-        addLog('Submitting to Relay Server...');
-        const response = await fetch('/api/deploy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+          // Build a clean explicit config — do NOT spread raw form state
+          const localDeployConfig = {
+            // Token identity
             name: config.name,
             symbol: config.symbol.toUpperCase(),
-            image: imageUrl || undefined,
-            description: config.description || undefined,
-            socialMediaUrls: socialMediaUrls.length > 0 ? socialMediaUrls : undefined,
+            image: imageUrl,
             tokenAdmin,
             rewardRecipient,
-            creatorReward: config.creatorReward,
+            description: config.description || '',
+            socialMediaUrls,
+
+            // Fee & pool
             feeType: config.feeType,
             poolPosition: config.poolPosition,
-            mevProtection: config.mevProtection,
-            blockDelay: config.blockDelay,
-            devBuyEth: parseFloat(config.devBuyEth) || 0,
-            platform: 'telegram',
-            telegramUserId: (useTelegramContext() as any).telegramUserId || 0,
-            salt: config.salt as `0x${string}` || undefined,
-          }),
-        });
+            staticFeePercentage: config.staticFeePercentage,
 
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Server deployment failed');
-        resultData = data;
+            // MEV protection
+            mevProtection: config.mevProtection === MevModuleType.BlockDelay ? 'BlockDelay' : 'None' as 'BlockDelay' | 'None',
+            blockDelay: Number(config.blockDelay),
+
+            // Economics
+            creatorReward: Number(config.creatorReward),
+            devBuyEth: Number(config.devBuyEth) || 0,
+
+            // Vanity
+            salt: deploymentSalt,
+
+            // Context
+            platform: 'web' as const,
+            telegramUserId: telegramUserId || undefined,
+          };
+
+          const result = await deployToken(activeLocalWallet.privateKey, localDeployConfig);
+
+          if (!result.success || !result.tokenAddress) {
+            throw new Error(result.error || 'Deployment failed locally');
+          }
+
+          resultData = {
+            txHash: result.txHash!,
+            tokenAddress: result.tokenAddress!,
+            id: 'local-' + Date.now(),
+            verified: true
+          };
+        } catch (localErr: any) {
+          addLog(`✗ Local attempt failed: ${localErr.message.slice(0, 80)}`);
+
+          // Fallback to relay on gas/balance/nonce/rejected errors
+          const shouldFallback = ['Insuf', 'nonce', 'gas', 'reject', 'fund', 'fee'].some(
+            kw => localErr.message.toLowerCase().includes(kw.toLowerCase())
+          );
+
+          if (shouldFallback) {
+            addLog('⟳ Auto-switching to Relay for resilience...');
+            resultData = await performRelayDeploy(tokenAdmin, rewardRecipient, imageUrl, socialMediaUrls);
+          } else {
+            throw localErr; // Re-throw fundamental errors (bad config, etc.)
+          }
+        }
+      } else {
+        // ── SERVER RELAY PATH ──────────────────────────────────────────────
+        addLog('Mode: Server-Relay Deployment');
+        resultData = await performRelayDeploy(tokenAdmin, rewardRecipient, imageUrl, socialMediaUrls);
       }
+
 
       // Success handling for both modes
       await new Promise(r => setTimeout(r, 500));
       addLog(`TX: ${resultData.txHash ? resultData.txHash.slice(0, 10) : '...'}...`);
       addLog('✓ Transactions Broadcasted');
       addLog('✓ Waiting for Block Confirmation...');
-
-      // In local mode, SDK waits for us. In server mode, it likely waited too.
-      // So we are good.
 
       addLog('✓ Confirmed on Base!');
       addLog(`Token: ${resultData.tokenAddress ? resultData.tokenAddress.slice(0, 10) : '...'}...`);
@@ -799,13 +850,11 @@ export default function DeployPage() {
 
     } catch (error) {
       console.error('Deploy error', error);
-      addLog(`✗ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addLog(`✗ Final Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
 
-      // Fallback hint
-      if (activeLocalWallet && (error as Error).message.includes('Insuf')) {
-        addLog('Hint: Check wallet balance for Gas + DevBuy');
-      } else if (!activeLocalWallet) {
-        addLog('Hint: Try adding a local wallet in Settings for direct control');
+      // Final fallback hint
+      if (!activeLocalWallet) {
+        addLog('Hint: If this persists, try importing a private key in Settings for direct control');
       }
 
       hapticFeedback('error');
@@ -1147,105 +1196,135 @@ export default function DeployPage() {
 
             {step === 'review' && (
               <motion.div key="review" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
-                <Terminal title="Review Deployment" className="w-full">
-                  <TerminalLine text="Review your configuration:" type="command" />
-                  <CLICard className="mt-4 bg-white dark:bg-gray-900/80 border-gray-200 dark:border-gray-800">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Name</span><span className="text-gray-800 dark:text-gray-200 font-bold">{config.name}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Symbol</span><span className="text-[#0052FF] font-medium">${config.symbol}</span></div>
-                      {config.image && (
-                        <div className="flex justify-between items-start">
-                          <span className="text-gray-500 dark:text-gray-400">Image</span>
-                          <span className="text-gray-600 dark:text-gray-300 text-xs truncate max-w-[180px]">{formatImageUrl(config.image)}</span>
-                        </div>
-                      )}
-                      {config.description && (
-                        <div className="flex justify-between items-start">
-                          <span className="text-gray-500 dark:text-gray-400">Description</span>
-                          <span className="text-gray-600 dark:text-gray-300 text-xs truncate max-w-[180px]">{config.description}</span>
-                        </div>
-                      )}
+                <div className="relative">
+                  {/* Decorative background glow */}
+                  <div className="absolute inset-0 bg-blue-500/5 dark:bg-blue-500/10 blur-3xl -z-10 rounded-full" />
 
-                      {/* Premium Active Wallet Card */}
-                      {activeLocalWallet ? (
-                        <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl p-5 text-white shadow-xl border border-blue-500/20 overflow-hidden relative group mb-6">
-                          {/* Background pulse effect */}
-                          <div className="absolute inset-0 bg-blue-500/5 animate-pulse-slow" />
-                          <div className="absolute -right-10 -top-10 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                          <div className="flex justify-between items-start relative z-10">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="text-[10px] font-mono uppercase tracking-widest text-blue-200/70">Active Deployer</p>
-                                <div className="px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[9px] font-mono border border-blue-500/30 flex items-center gap-1">
-                                  <div className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" />
-                                  LOCAL
-                                </div>
-                              </div>
-                              <p className="font-bold text-lg tracking-tight">{activeLocalWallet.label}</p>
-                              <p className="font-mono text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                                {activeLocalWallet.address.slice(0, 8)}...{activeLocalWallet.address.slice(-6)}
-                                <Copy className="w-3 h-3 cursor-pointer hover:text-white transition-colors" onClick={(e) => { e.stopPropagation(); copyToClipboard(activeLocalWallet.address, 'addr'); }} />
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] font-mono uppercase tracking-widest text-blue-200/70 mb-1">Live Balance</p>
-                              <div className="flex items-center justify-end gap-2">
-                                <div className={`w-2 h-2 rounded-full ${localBalance ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)] animate-pulse' : 'bg-gray-600'}`} />
-                                <p className="font-mono text-xl font-bold tracking-tight">
-                                  {localBalance ? parseFloat(localBalance).toFixed(4) : '...'}
-                                  <span className="text-sm font-normal text-gray-400 ml-1">ETH</span>
-                                </p>
-                              </div>
-                              <button onClick={() => router.push('/settings')} className="text-[10px] text-blue-400 hover:text-blue-300 mt-1 underline decoration-blue-500/30">
-                                Switch Wallet
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => router.push('/settings')}
-                          className="bg-white dark:bg-gray-900 border text-left border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm mb-6 group"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-                              <Settings className="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-gray-900 dark:text-white">Relay Server Mode</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Using default shared connection</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 text-[#0052FF] font-bold text-sm bg-blue-50 dark:bg-blue-900/10 px-3 py-1.5 rounded-lg group-hover:bg-[#0052FF] group-hover:text-white transition-all">
-                            Setup Wallet <ChevronRight className="w-4 h-4" />
-                          </div>
-                        </div>
-                      )}
-                      <div className="border-t border-gray-100 dark:border-gray-800 pt-2 mt-2 space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Protocol Fee</span><span className="text-gray-400 dark:text-gray-500">Standard</span></div>
-                        <div className="flex justify-between font-bold text-emerald-500">
-                          <span>Creator Reward</span>
-                          <span>{config.creatorReward}% {config.creatorReward === 100 ? '(Max Power)' : ''}</span>
-                        </div>
-                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Interface Fee</span><span className="text-gray-400 dark:text-gray-500">{100 - config.creatorReward}%</span></div>
-                        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-                          <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Admin</span><span className="text-[10px] font-mono text-gray-700 dark:text-gray-300">{shortenAddress(config.tokenAdmin)}</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Recipient</span><span className="text-[10px] font-mono text-gray-700 dark:text-gray-300">{shortenAddress(config.rewardRecipient)}</span></div>
-                        </div>
-                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Pool</span><span className="text-gray-700 dark:text-gray-300">{config.poolPosition}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">MEV</span><span className="text-gray-700 dark:text-gray-300 flex items-center gap-1"><Shield className="w-3 h-3 text-[#0052FF]" />{config.mevProtection}</span></div>
-                        {parseFloat(config.devBuyEth) > 0 && (
-                          <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Dev Buy</span><span className="text-gray-700 dark:text-gray-300">{config.devBuyEth} ETH</span></div>
-                        )}
+                  <Terminal title="review@base:~/deployment-config" className="w-full shadow-2xl overflow-hidden border-blue-500/20">
+                    <div className="flex items-center gap-2 mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
+                      <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                        <Rocket className="w-5 h-5 text-[#0052FF]" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wider">Deployment Receipt</h2>
+                        <p className="text-[10px] font-mono text-gray-500">v4.0.2-stable</p>
                       </div>
                     </div>
-                  </CLICard>
-                  <div className="flex gap-3 mt-6">
-                    <CLIButton variant="ghost" onClick={() => setStep('form')} agentId="deploy-edit-button">Edit</CLIButton>
-                    <CLIButton variant="primary" onClick={handleDeploy} fullWidth icon={<Rocket className="w-4 h-4" />} loading={isDeploying} agentId="deploy-confirm-button">Deploy Now</CLIButton>
-                  </div>
-                </Terminal>
+
+                    <div className="space-y-6">
+                      {/* Token Identity Section */}
+                      <section>
+                        <h3 className="text-[10px] font-mono font-bold text-[#0052FF] uppercase tracking-widest mb-3 opacity-70">01 // Identity</h3>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div className="flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
+                            <div className="w-12 h-12 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden shrink-0">
+                              {config.image ? (
+                                <img src={getPreviewUrl(config.image)} alt="Preview" className="w-full h-full object-cover" />
+                              ) : (
+                                <Image className="w-6 h-6 text-gray-300" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-gray-900 dark:text-white truncate">{config.name}</p>
+                              <p className="font-mono text-xs text-[#0052FF] font-medium tracking-wider">${config.symbol}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Launch Strategy Section */}
+                      <section>
+                        <h3 className="text-[10px] font-mono font-bold text-emerald-500 uppercase tracking-widest mb-3 opacity-70">02 // Launch Strategy</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
+                            <p className="text-[9px] font-mono text-gray-500 mb-1">Fee Type</p>
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-gray-800 dark:text-gray-200 uppercase">
+                              <Zap className="w-3 h-3 text-amber-500" />
+                              {config.feeType}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
+                            <p className="text-[9px] font-mono text-gray-500 mb-1">Pool Type</p>
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-gray-800 dark:text-gray-200 uppercase">
+                              <Globe className="w-3 h-3 text-blue-500" />
+                              {config.poolPosition}
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Governance Section */}
+                      <section>
+                        <h3 className="text-[10px] font-mono font-bold text-purple-500 uppercase tracking-widest mb-3 opacity-70">03 // Governance</h3>
+                        <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-mono text-gray-500">Creator Reward</span>
+                            <span className="text-xs font-bold text-emerald-500">{config.creatorReward}%</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-mono text-gray-500">MEV Protection</span>
+                            <span className="text-xs font-bold text-blue-500 flex items-center gap-1">
+                              <Shield className="w-3 h-3" />
+                              {config.mevProtection}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-mono text-gray-500">Admin</span>
+                              <span className="text-[10px] font-mono text-gray-700 dark:text-gray-300">{shortenAddress(config.tokenAdmin)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Priority Execution Section */}
+                      {activeLocalWallet ? (
+                        <motion.div
+                          initial={{ scale: 0.98, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="p-4 rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-blue-500/30 shadow-xl relative overflow-hidden group"
+                        >
+                          <div className="absolute inset-0 bg-blue-500/5 group-hover:bg-blue-500/10 transition-colors" />
+                          <div className="flex items-start justify-between relative z-10">
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 text-[8px] font-bold tracking-tighter border border-blue-500/30">PRIORITY</span>
+                                <span className="text-[10px] font-mono text-blue-200/50 uppercase tracking-widest">Local Signing</span>
+                              </div>
+                              <h4 className="font-bold text-white text-base">{activeLocalWallet.label}</h4>
+                              <p className="font-mono text-[9px] text-gray-400 mt-1">{shortenAddress(activeLocalWallet.address, 6)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[9px] font-mono text-blue-200/50 mb-1">AVAL. BALANCE</p>
+                              <p className="font-mono text-lg font-bold text-white">
+                                {localBalance ? parseFloat(localBalance).toFixed(4) : '0.000'}
+                                <span className="text-[10px] text-gray-500 ml-1">ETH</span>
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900/50 border border-amber-500/20 flex items-center justify-between border-dashed">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-500">
+                              <RefreshCw className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-gray-800 dark:text-gray-200 text-sm">Relay Fallback Active</h4>
+                              <p className="text-[10px] text-gray-500 tracking-tight">Deployment via Shared Gas Pooled System</p>
+                            </div>
+                          </div>
+                          <div className="text-[9px] font-mono bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-2 py-1 rounded border border-amber-200 dark:border-amber-800/50">RESILIENT</div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 mt-8">
+                      <CLIButton variant="ghost" onClick={() => setStep('form')} agentId="deploy-edit-button">modify.config</CLIButton>
+                      <CLIButton variant="primary" onClick={handleDeploy} fullWidth icon={<Rocket className="w-4 h-4" />} loading={isDeploying} agentId="deploy-confirm-button">deploy.now()</CLIButton>
+                    </div>
+                  </Terminal>
+                </div>
               </motion.div>
             )}
 
@@ -1260,140 +1339,178 @@ export default function DeployPage() {
                 className="py-12 flex flex-col items-center w-full relative"
               >
                 {/* Futuristic Core Loading Animation */}
-                <div className="relative mb-8 flex items-center justify-center">
+                <div className="relative mb-12 flex items-center justify-center">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-                    className="absolute w-32 h-32 rounded-full border-t-2 border-r-2 border-[#0052FF] opacity-50 drop-shadow-[0_0_15px_rgba(0,82,255,0.5)]"
+                    className="absolute w-40 h-40 rounded-full border-t-2 border-r-2 border-[#0052FF] opacity-30 blur-[1px]"
                   />
                   <motion.div
                     animate={{ rotate: -360 }}
                     transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
-                    className="absolute w-28 h-28 rounded-full border-b-2 border-l-2 border-cyan-400 dark:border-cyan-300 opacity-60 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                    className="absolute w-36 h-36 rounded-full border-b-2 border-l-2 border-cyan-400 opacity-40 blur-[1px]"
                   />
                   <motion.div
-                    animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.8, 0.3] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute w-20 h-20 rounded-full bg-[#0052FF]/30 blur-xl"
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute w-24 h-24 rounded-full bg-[#0052FF]/20 blur-2xl"
                   />
-                  <div className="w-16 h-16 bg-white dark:bg-gray-900 border border-[#0052FF]/30 rounded-full flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(0,82,255,0.2)]">
-                    <Rocket className="w-8 h-8 text-[#0052FF] dark:text-blue-400" />
+                  <div className="w-20 h-20 bg-white dark:bg-gray-900 border border-blue-500/20 rounded-full flex items-center justify-center relative z-10 shadow-2xl">
+                    <motion.div
+                      animate={{ y: [0, -4, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Rocket className="w-10 h-10 text-[#0052FF]" />
+                    </motion.div>
                   </div>
                 </div>
 
-                <motion.h2
-                  animate={{ opacity: [0.7, 1, 0.7] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                  className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#0052FF] to-cyan-500 mb-2 font-display text-center"
-                >
-                  Synthesizing Contract...
-                </motion.h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-8 text-xs font-mono tracking-widest uppercase text-center">Broadcasting to Base</p>
+                <div className="text-center mb-8">
+                  <motion.h2
+                    animate={{ opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="text-2xl font-bold text-gray-900 dark:text-white mb-2 font-display"
+                  >
+                    Launching Protocol
+                  </motion.h2>
+                  <p className="text-xs font-mono text-[#0052FF] tracking-[0.2em] uppercase opacity-70">Broadcasting to Base Mainnet</p>
+                </div>
 
-                <div className="w-full bg-black/90 backdrop-blur-xl rounded-xl overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.3)] border border-blue-900/40 font-mono text-xs max-w-sm relative group">
+                <div className="w-full bg-black/95 backdrop-blur-2xl rounded-2xl overflow-hidden shadow-2xl border border-blue-900/30 max-w-sm relative group">
                   <div className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden">
                     <motion.div
-                      animate={{ y: ['-100%', '200%'] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                      className="absolute inset-x-0 h-32 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent"
+                      animate={{ y: ['-100%', '300%'] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                      className="absolute inset-x-0 h-40 bg-gradient-to-b from-transparent via-blue-500/5 to-transparent"
                     />
                   </div>
-                  <div className="bg-gray-900/80 px-3 py-2 flex items-center gap-2 border-b border-gray-800 relative z-10">
+                  <div className="bg-gray-950 px-4 py-2.5 flex items-center justify-between border-b border-gray-800/50 relative z-10">
                     <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                      <div className="w-2 h-2 rounded-full bg-red-500/50" />
+                      <div className="w-2 h-2 rounded-full bg-yellow-500/50" />
+                      <div className="w-2 h-2 rounded-full bg-green-500/50" />
                     </div>
-                    <span className="text-gray-500 ml-2">deploy.log</span>
+                    <span className="text-[10px] font-mono text-gray-500 uppercase tracking-tighter">SDK_ENGINE_LOGS</span>
                   </div>
-                  <div className="p-4 h-64 overflow-y-auto space-y-2 scrollbar-hide text-cyan-400 font-mono leading-relaxed relative z-10">
+                  <div className="p-4 h-72 overflow-y-auto space-y-3 font-mono text-[10px] scrollbar-hide relative z-10">
                     {deployLogs.map((log, i) => (
                       <motion.div
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={{ opacity: 0, x: -5 }}
                         animate={{ opacity: 1, x: 0 }}
                         key={i}
-                        className="break-all border-l-2 border-transparent hover:border-cyan-800 pl-2"
+                        className={`pl-3 border-l ${log.startsWith('✓') ? 'text-emerald-400 border-emerald-500/30' : log.startsWith('✗') ? 'text-red-400 border-red-500/30' : 'text-blue-300 border-blue-500/30'}`}
                       >
-                        <span className="text-gray-600 mr-2 select-none">[{new Date().toLocaleTimeString('en-US', { hour12: false, minute: '2-digit', second: '2-digit' })}]</span>
+                        <span className="text-gray-600 mr-2 opacity-50 select-none">[{i.toString().padStart(2, '0')}]</span>
                         {log}
                       </motion.div>
                     ))}
-                    <div className="animate-pulse text-cyan-500 font-bold">_</div>
+                    <motion.div
+                      animate={{ opacity: [0, 1, 0] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="w-1.5 h-3 bg-[#0052FF] inline-block align-middle ml-1"
+                    />
                   </div>
                 </div>
               </motion.div>
             )}
 
+
             {step === 'success' && deployResult && (
               <motion.div
                 key="success"
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                className="py-6 flex flex-col items-center w-full text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="py-4 flex flex-col items-center w-full"
               >
-                <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-green-500/10 border-4 border-white ring-4 ring-green-50">
-                  <Check className="w-10 h-10 text-green-600" />
-                </div>
+                {/* Full Width Token Celebration Card */}
+                <div className="w-full relative max-w-sm mb-8">
+                  {/* Outer Glow */}
+                  <div className="absolute inset-0 bg-green-500/20 blur-[100px] -z-10 rounded-full" />
 
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Deployment Successful!</h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Your token is live on Base.</p>
+                  <div className="bg-white dark:bg-gray-950 rounded-[2.5rem] border border-green-500/30 p-8 shadow-2xl relative overflow-hidden group">
+                    {/* Security Watermark */}
+                    <div className="absolute -right-12 -top-12 opacity-[0.03] rotate-12 pointer-events-none">
+                      <ClankerLogo size="lg" />
+                    </div>
 
-                <div className="w-full bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm mb-6 text-left space-y-4 relative overflow-hidden max-w-sm">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
-                  <div>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5">Token Address</p>
-                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 group hover:border-green-200 dark:hover:border-green-800 transition-colors cursor-pointer" onClick={() => copyToClipboard(deployResult.tokenAddress, 'addr')}>
-                      <code className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-mono font-medium">{deployResult.tokenAddress}</code>
-                      <div className="text-gray-400 group-hover:text-gray-600">
-                        {copiedField === 'addr' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                    <div className="flex flex-col items-center text-center">
+                      <motion.div
+                        initial={{ scale: 0, rotate: -45 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", damping: 15 }}
+                        className="w-20 h-20 bg-green-500 rounded-3xl flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(34,197,94,0.4)] rotate-3"
+                      >
+                        <Check className="w-10 h-10 text-white" />
+                      </motion.div>
+
+                      <h2 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tighter mb-1">Genesis Complete</h2>
+                      <p className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 mb-8">
+                        TOKEN INDEXED ON BASE MAINNET
+                      </p>
+
+                      <div className="w-full bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 mb-6">
+                        <div className="flex items-center gap-4 text-left">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white dark:border-gray-800 shadow-sm shrink-0">
+                            {config.image ? (
+                              <img src={getPreviewUrl(config.image)} alt="Token" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-gray-100 flex items-center justify-center"><Coins className="w-8 h-8 text-gray-300" /></div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-black text-lg text-gray-900 dark:text-white leading-tight truncate">{config.name}</h3>
+                            <p className="font-mono text-sm text-[#0052FF] font-bold">${config.symbol}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="w-full space-y-2">
+                        <p className="text-[9px] font-mono text-gray-400 uppercase tracking-widest text-left ml-2">Smart Contract</p>
+                        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-3.5 rounded-2xl hover:border-blue-500/30 transition-all cursor-pointer group/addr" onClick={() => handleCopy(deployResult.tokenAddress, 'addr')}>
+                          <code className="text-xs text-gray-600 dark:text-gray-400 font-mono truncate flex-1">{deployResult.tokenAddress}</code>
+                          <div className="text-gray-300 group-hover/addr:text-blue-500 transition-colors">
+                            {copiedField === 'addr' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-2">
+                {/* Primary Actions */}
+                <div className="w-full max-w-sm space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <a
                       href={`https://clanker.world/clanker/${deployResult.tokenAddress}`}
                       target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-[#0052FF]/5 hover:bg-[#0052FF]/10 text-[#0052FF] p-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-[#0052FF]/10 hover:border-[#0052FF]/30 active:scale-[0.98]"
+                      className="py-4 rounded-2xl bg-[#0052FF] text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 active:scale-95 transition-all"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#0052FF]" />
+                      <Globe className="w-4 h-4" />
                       Clanker
-                      <ExternalLink className="w-3 h-3 opacity-50" />
                     </a>
                     <a
                       href={`https://dexscreener.com/base/${deployResult.tokenAddress}`}
                       target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 p-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-gray-200 dark:border-gray-700 hover:border-gray-300 active:scale-[0.98]"
+                      className="py-4 rounded-2xl bg-gray-900 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                      DexScreener
-                      <ExternalLink className="w-3 h-3 opacity-50" />
+                      <Zap className="w-4 h-4" />
+                      Trade
                     </a>
                   </div>
-                </div>
 
-                <div className="w-full space-y-3 max-w-sm">
-                  <CLIButton
-                    variant="primary"
-                    onClick={deployAnother}
-                    fullWidth
-                    className="py-4 text-base shadow-lg shadow-blue-500/20"
-                  >
-                    <Rocket className="w-4 h-4 mr-2" />
-                    Deploy Another Token
-                  </CLIButton>
                   <button
-                    onClick={() => router.push('/settings')}
-                    className="w-full py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    onClick={deployAnother}
+                    className="w-full py-4 rounded-2xl border-2 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-900 transition-all flex items-center justify-center gap-2"
                   >
-                    <Settings className="w-4 h-4" />
-                    Manage Wallet
+                    <RefreshCw className="w-4 h-4" />
+                    Deploy Another Protocol
                   </button>
-                  <button onClick={shareToken} className="w-full py-2 text-xs font-medium text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex items-center justify-center gap-1.5">
-                    <Share2 className="w-3 h-3" /> Share Result
+
+                  <button
+                    onClick={shareToken}
+                    className="w-full py-2 text-[10px] font-mono text-gray-400 uppercase tracking-widest hover:text-[#0052FF] flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Share2 className="w-3 h-3" /> Export Genesis Data
                   </button>
                 </div>
               </motion.div>
