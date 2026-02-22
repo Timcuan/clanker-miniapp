@@ -1,5 +1,5 @@
 
-import { POOL_POSITIONS, FEE_CONFIGS, MevModuleType, DEFAULT_CONFIG, INTERFACE_ADMIN, INTERFACE_REWARD_RECIPIENT } from './constants';
+import { POOL_POSITIONS, FEE_CONFIGS, MevModuleType, DEFAULT_CONFIG, INTERFACE_REWARD_RECIPIENT } from './constants';
 import { generateMessageId, normalizeIpfsUri } from '../utils';
 
 export interface SocialMediaUrl {
@@ -123,22 +123,25 @@ export function buildTokenConfig(
   // Map fee config
   let fees: any = FEE_CONFIGS.DynamicBasic;
   if (feeType === 'static') {
-    // Override static fee with custom percentage if static
-    const staticFeeBps = Math.min((options.staticFeePercentage || 10) * 100, 500); // 500 bps is V4 max limit
+    // Override static fee with custom percentage (input maps correctly without hard 5% caps)
+    const staticFeeBps = (options.staticFeePercentage || 10) * 100;
     fees = {
       ...FEE_CONFIGS.StaticFlatCustom,
       clankerFee: staticFeeBps,
       pairedFee: staticFeeBps
     };
   } else if (feeType === 'degen') {
-    fees = {
-      ...FEE_CONFIGS.HighFeeDegen,
-      maxFee: Math.min(FEE_CONFIGS.HighFeeDegen.maxFee, 500),
-      startingSniperFee: Math.min(FEE_CONFIGS.HighFeeDegen.startingSniperFee, 500)
-    };
+    fees = FEE_CONFIGS.HighFeeDegen;
   } else if (feeType === 'low') {
     fees = FEE_CONFIGS.ExperimentalLow;
   }
+
+  // Workaround: Clanker UI assigns the "Creator" visual tag to rewardRecipients[0].
+  // However, giving 0 BPS throws ZeroRewardAmount reverts in V4.
+  // We allocate an imperceptible 1 BPS to TokenAdmin so it successfully anchors [0],
+  // while channeling the authentic creator payload directly to the desired target.
+  const displayAdminBps = creatorBps > 0 ? 1 : 0;
+  const actualCreatorBps = creatorBps > 0 ? creatorBps - 1 : 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const config: any = {
@@ -161,14 +164,14 @@ export function buildTokenConfig(
       recipients: [
         {
           admin: tokenAdmin,
-          recipient: tokenAdmin, // Display admin on Clanker interface
-          bps: 0,
+          recipient: tokenAdmin, // Display admin on Clanker interface (Index 0)
+          bps: displayAdminBps,
           token: 'Both',
         },
         {
           admin: tokenAdmin,
           recipient: rewardRecipient, // Actual Creator Reward Receiver
-          bps: creatorBps,
+          bps: actualCreatorBps,
           token: 'Both',
         },
         {
