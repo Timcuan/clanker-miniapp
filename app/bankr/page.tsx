@@ -64,7 +64,7 @@ export default function BankrPage() {
                         </div>
                         <div>
                             <h1 className="font-display font-bold text-sm text-purple-400">Agent Bankr</h1>
-                            <p className="font-mono text-[10px] text-gray-400">v2.8.0</p>
+                            <p className="font-mono text-[10px] text-gray-400">v2.9.0</p>
                         </div>
                     </div>
                 </div>

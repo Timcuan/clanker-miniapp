@@ -145,6 +145,7 @@ export default function SettingsPage() {
                 <Wallet className="w-5 h-5 text-[#0052FF]" />
               </div>
               <div>
+                <p className="font-mono text-[10px] text-gray-400">v2.9.0</p>
                 <p className="font-bold text-sm text-gray-800 dark:text-gray-200">Wallet Management</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Deployer keys · Bankr Burner Log · Rescue Funds</p>
               </div>
@@ -290,7 +291,7 @@ export default function SettingsPage() {
             <ClankerLogo size="sm" animated={false} />
           </div>
           <p className="text-[10px] text-gray-400 font-mono">
-            UMKM Terminal v2.8.0<br />Powered by Clanker SDK
+            UMKM Terminal v2.9.0<br />Powered by Clanker SDK
           </p>
         </div>
 

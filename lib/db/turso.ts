@@ -49,6 +49,8 @@ export interface DbBurner {
   address: string;
   encrypted_pk: string;
   status: 'active' | 'swept' | 'failed';
+  funding_tx_hash: string | null;
+  funding_amount: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -127,6 +129,8 @@ function rowToBurner(row: Row): DbBurner {
     address: row.address as string,
     encrypted_pk: row.encrypted_pk as string,
     status: row.status as 'active' | 'swept' | 'failed',
+    funding_tx_hash: row.funding_tx_hash as string | null,
+    funding_amount: row.funding_amount as string | null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   };
@@ -147,6 +151,8 @@ export async function initDatabase() {
     "ALTER TABLE users ADD COLUMN is_authorized INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN last_active_at TEXT",
     "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0",
+    "ALTER TABLE burners ADD COLUMN funding_tx_hash TEXT",
+    "ALTER TABLE burners ADD COLUMN funding_amount TEXT",
   ];
 
   for (const query of migrationQueries) {
@@ -211,6 +217,8 @@ export async function initDatabase() {
       address TEXT UNIQUE NOT NULL,
       encrypted_pk TEXT NOT NULL,
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'swept', 'failed')),
+      funding_tx_hash TEXT,
+      funding_amount TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -692,14 +700,17 @@ export async function getRecentDeployments(limit = 20): Promise<(DbDeployment & 
 export async function registerBurner(
   userId: number,
   address: string,
-  encryptedPk: string
-): Promise<void> {
+  encryptedPk: string,
+  fundingAmount?: string,
+  fundingTxHash?: string
+): Promise<number> {
   try {
     const db = getClient();
-    await db.execute({
-      sql: 'INSERT INTO burners (user_id, address, encrypted_pk, status) VALUES (?, ?, ?, "active")',
-      args: [userId, address, encryptedPk],
+    const result = await db.execute({
+      sql: 'INSERT INTO burners (user_id, address, encrypted_pk, status, funding_amount, funding_tx_hash) VALUES (?, ?, ?, "active", ?, ?) RETURNING id',
+      args: [userId, address, encryptedPk, fundingAmount || null, fundingTxHash || null],
     });
+    return result.rows[0].id as number;
   } catch (error) {
     console.error('[DB] registerBurner error:', error);
     throw error;
@@ -708,16 +719,42 @@ export async function registerBurner(
 
 export async function markBurnerStatus(
   address: string,
-  status: 'swept' | 'failed'
+  status: 'swept' | 'failed',
+  fundingTxHash?: string
+): Promise<void> {
+  try {
+    const db = getClient();
+    const updates = ['status = ?', 'updated_at = CURRENT_TIMESTAMP'];
+    const args: any[] = [status];
+
+    if (fundingTxHash) {
+      updates.push('funding_tx_hash = ?');
+      args.push(fundingTxHash);
+    }
+    args.push(address);
+
+    await db.execute({
+      sql: `UPDATE burners SET ${updates.join(', ')} WHERE address = ?`,
+      args,
+    });
+  } catch (error) {
+    console.error('[DB] markBurnerStatus error:', error);
+    throw error;
+  }
+}
+
+export async function updateBurnerFunding(
+  address: string,
+  fundingTxHash: string
 ): Promise<void> {
   try {
     const db = getClient();
     await db.execute({
-      sql: 'UPDATE burners SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE address = ?',
-      args: [status, address],
+      sql: 'UPDATE burners SET funding_tx_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE address = ?',
+      args: [fundingTxHash, address],
     });
   } catch (error) {
-    console.error('[DB] markBurnerStatus error:', error);
+    console.error('[DB] updateBurnerFunding error:', error);
     throw error;
   }
 }

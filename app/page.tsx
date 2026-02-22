@@ -590,7 +590,7 @@ export default function HomePage() {
       < footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors" >
         <div className="flex items-center justify-between max-w-lg sm:max-w-2xl mx-auto">
           <p className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">
-            UMKM v2.8.0
+            UMKM v2.9.0
           </p>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">Base</span>

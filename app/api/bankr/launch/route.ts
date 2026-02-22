@@ -8,7 +8,7 @@ import { sweepFunds } from '@/lib/bankr/x402';
 import { sendAdminLog } from '@/lib/access-control';
 import { getSessionFromRequest } from '@/lib/auth/session';
 import { encrypt } from '@/lib/serverless-db';
-import { findUserByTelegramId, registerBurner, markBurnerStatus } from '@/lib/db/turso';
+import { findUserByTelegramId, registerBurner, markBurnerStatus, updateBurnerFunding } from '@/lib/db/turso';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient, http, parseEther, formatEther } from 'viem';
 import { base } from 'viem/chains';
@@ -101,32 +101,25 @@ export async function POST(request: NextRequest) {
     // ── 4. Setup Burner Wallet ───────────────────────────────────────────────
     const burnerPk = generatePrivateKey();
     const burnerAccount = privateKeyToAccount(burnerPk);
+    let burnerDbId: number | undefined;
 
     console.log(`[Bankr] Created burner wallet: ${burnerAccount.address}`);
 
-    // Persist burner immediately for fund recovery
+    // Pre-calculate dynamic funding based on current gas
+    let dynamicFundingEth = FUNDING_AMOUNT_ETH;
     try {
-        if (session.telegramUserId) {
-            const user = await findUserByTelegramId(session.telegramUserId);
-            if (user) {
-                await registerBurner(user.id, burnerAccount.address, encrypt(burnerPk));
-                console.log(`[Bankr] Burner persisted for safety: ${burnerAccount.address}`);
-
-                // Send direct notification to user with recovery info
-                const { sendUserLog } = await import('@/lib/access-control');
-                sendUserLog(session.telegramUserId,
-                    `🛡️ <b>Burner Wallet Created</b>\n\n` +
-                    `Every Bankr launch uses a temporary burner wallet for security. If the launch fails, you can recover funds using the info below:\n\n` +
-                    `📍 <b>Address:</b> <code>${burnerAccount.address}</code>\n` +
-                    `🔑 <b>Private Key:</b> <code>${burnerPk}</code>\n\n` +
-                    `<i>Keep this message until your tokens are successfully launched and funds swept!</i>`
-                );
-            }
-        }
-    } catch (dbError) {
-        console.error('[Bankr] Failed to persist/notify burner:', dbError);
-        // Non-fatal, but logged
+        const gasPrice = await publicClient.getGasPrice();
+        // Budget calculation:
+        // 0.0006 ETH base budget (swap + liquidity)
+        // 150,000 gas limit for hops * gasPrice * 1.5 safety
+        const gasBudget = (gasPrice * BigInt(150_000) * BigInt(15)) / BigInt(10);
+        const totalWei = parseEther('0.0006') + gasBudget;
+        dynamicFundingEth = formatEther(totalWei);
+        console.log(`[Bankr] Dynamic funding calculated: ${dynamicFundingEth} ETH (Gas price: ${formatEther(gasPrice)} ETH)`);
+    } catch (gasErr) {
+        console.warn('[Bankr] Dynamic gas calculation failed, using fallback:', gasErr);
     }
+
 
     const walletClient = createWalletClient({
         account: userAccount,
@@ -136,16 +129,45 @@ export async function POST(request: NextRequest) {
 
     // ── 5. Fund Burner Wallet ────────────────────────────────────────────────
     try {
-        console.log(`[Bankr] Funding burner wallet with ${FUNDING_AMOUNT_ETH} ETH...`);
+        console.log(`[Bankr] Funding burner wallet with ${dynamicFundingEth} ETH...`);
+
+        // Nonce Management: Get latest nonce to avoid collisions
+        const nonce = await publicClient.getTransactionCount({ address: userAccount.address, blockTag: 'pending' });
+
         const fundingTxHash = await walletClient.sendTransaction({
             to: burnerAccount.address,
-            value: parseEther(FUNDING_AMOUNT_ETH),
+            value: parseEther(dynamicFundingEth),
+            nonce,
         });
+
+        // ── Coordinated Persistence (Update DB with hash before awaiting) ────
+        if (session.telegramUserId) {
+            try {
+                const user = await findUserByTelegramId(session.telegramUserId);
+                if (user) {
+                    burnerDbId = await registerBurner(user.id, burnerAccount.address, encrypt(burnerPk), dynamicFundingEth, fundingTxHash);
+                    console.log(`[Bankr] Burner registered with TX hash: ${fundingTxHash}`);
+
+                    // Notify user via Telegram
+                    const { sendUserLog } = await import('@/lib/access-control');
+                    sendUserLog(session.telegramUserId,
+                        `🛡️ <b>Burner Wallet Created & Funding Sent</b>\n\n` +
+                        `Funding of <code>${dynamicFundingEth}</code> ETH has been broadcast to your burner wallet.\n\n` +
+                        `📍 <b>Address:</b> <code>${burnerAccount.address}</code>\n` +
+                        `🔑 <b>Private Key:</b> <code>${burnerPk}</code>\n` +
+                        `🔗 <b>Funding Tx:</b> <a href="https://basescan.org/tx/${fundingTxHash}">${fundingTxHash.substring(0, 10)}...</a>\n\n` +
+                        `<i>We are now awaiting network confirmation...</i>`
+                    );
+                }
+            } catch (dbErr) {
+                console.error('[Bankr] Coordinated persistence failed:', dbErr);
+            }
+        }
 
         await publicClient.waitForTransactionReceipt({ hash: fundingTxHash, timeout: 60_000 });
         console.log(`[Bankr] Burner funded. Tx: ${fundingTxHash}`);
 
-        sendAdminLog(`💳 <b>Burner Funded</b>\n<code>${burnerAccount.address}</code> received ${FUNDING_AMOUNT_ETH} ETH.\n<a href="https://basescan.org/tx/${fundingTxHash}">View Tx</a>`);
+        sendAdminLog(`💳 <b>Burner Funded</b>\n<code>${burnerAccount.address}</code> received ${dynamicFundingEth} ETH.\n<a href="https://basescan.org/tx/${fundingTxHash}">View Tx</a>`);
     } catch (fundError) {
         console.error('[Bankr] Burner wallet funding failed:', fundError);
         sendAdminLog(`❌ <b>Burner Funding Failed</b>\n${fundError instanceof Error ? fundError.message : 'Unknown error'}`);

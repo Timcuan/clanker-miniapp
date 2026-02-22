@@ -256,7 +256,7 @@ export default function WalletManagementPage() {
                     </button>
                 )}
                 <div>
-                    <h1 className="text-xl font-bold font-mono tracking-tight text-white flex items-center gap-2">Wallet Settings <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400">v2.8.0</span></h1>
+                    <h1 className="text-xl font-bold font-mono tracking-tight text-white flex items-center gap-2">Wallet Settings <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400">v2.9.0</span></h1>
                     <p className="font-mono text-[10px] text-gray-400">Keys · Rescue</p>
                 </div>
             </header>
