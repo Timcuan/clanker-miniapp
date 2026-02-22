@@ -15,7 +15,7 @@ interface AccessGateProps {
 const PROTECTED_ROUTES = ['/deploy', '/history', '/settings'];
 
 export default function AccessGate({ children }: AccessGateProps) {
-  const { hasAccess, isAdmin, isChecking, isInitialized } = useAccess();
+  const { hasAccess, isAdmin, isChecking, isInitialized, checkAccess } = useAccess();
   const { user } = useTelegramContext();
   const pathname = usePathname();
 
@@ -112,7 +112,7 @@ export default function AccessGate({ children }: AccessGateProps) {
             </div>
 
             <button
-              onClick={() => useAccess().checkAccess()}
+              onClick={() => checkAccess()}
               className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black transition-colors"
             >
               Re-verify Access

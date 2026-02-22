@@ -96,14 +96,18 @@ export function buildTokenConfig(
   let fees: any = FEE_CONFIGS.DynamicBasic;
   if (feeType === 'static') {
     // Override static fee with custom percentage if static
-    const staticFeeBps = (options.staticFeePercentage || 10) * 100;
+    const staticFeeBps = Math.min((options.staticFeePercentage || 10) * 100, 500); // 500 bps is V4 max limit
     fees = {
       ...FEE_CONFIGS.StaticFlatCustom,
       clankerFee: staticFeeBps,
       pairedFee: staticFeeBps
     };
   } else if (feeType === 'degen') {
-    fees = FEE_CONFIGS.HighFeeDegen;
+    fees = {
+      ...FEE_CONFIGS.HighFeeDegen,
+      maxFee: Math.min(FEE_CONFIGS.HighFeeDegen.maxFee, 500),
+      startingSniperFee: Math.min(FEE_CONFIGS.HighFeeDegen.startingSniperFee, 500)
+    };
   } else if (feeType === 'low') {
     fees = FEE_CONFIGS.ExperimentalLow;
   }
@@ -139,17 +143,10 @@ export function buildTokenConfig(
           bps: interfaceBps,
           token: 'Both',
         },
-      ],
+      ].filter(r => r.bps > 0),
     },
 
     fees,
-
-    mevModule: {
-      type: mevModuleType,
-      ...(mevModuleType === MevModuleType.BlockDelay && {
-        blockDelay,
-      }),
-    },
 
     // Sniper fees configuration for MEV protection
     sniperFees: {
