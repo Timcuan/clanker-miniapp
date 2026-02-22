@@ -101,18 +101,23 @@ export function buildTokenConfig(
   const rewardRecipient = input.rewardRecipient as `0x${string}`;
 
   // Calculate reward BPS (basis points)
-  // Creator Reward % goes to Token Admin.
-  // The remaining % goes to the Reward Recipient (Platform/Referrer)
+  // Creator Reward % goes to Reward Recipient.
+  // TokenAdmin gets 0% (used solely as the display admin on Clanker interface).
   const safeCreatorReward = Math.min(Math.max(creatorReward, 0), 100);
   const creatorBps = safeCreatorReward * 100;
   const interfaceBps = 10000 - creatorBps;
 
-  // Build metadata
+  // Build metadata (strip empty strings failsafe)
   const metadata: { description?: string; socialMediaUrls?: SocialMediaUrl[] } = {};
-  metadata.description = input.description || `${input.name} - Deployed via ${DEFAULT_CONFIG.contextInterface}`;
+
+  const cleanDescription = input.description?.trim();
+  metadata.description = cleanDescription || `${input.name} - Deployed via ${DEFAULT_CONFIG.contextInterface}`;
 
   if (input.socialMediaUrls && input.socialMediaUrls.length > 0) {
-    metadata.socialMediaUrls = input.socialMediaUrls;
+    const validUrls = input.socialMediaUrls.filter(s => s.platform?.trim() && s.url?.trim());
+    if (validUrls.length > 0) {
+      metadata.socialMediaUrls = validUrls;
+    }
   }
 
   // Map fee config
@@ -137,8 +142,8 @@ export function buildTokenConfig(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const config: any = {
-    name: input.name,
-    symbol: input.symbol,
+    name: input.name?.trim(),
+    symbol: input.symbol?.trim(),
     image: normalizeIpfsUri(input.image),
     tokenAdmin,
     chainId: 8453, // Base Mainnet
@@ -156,13 +161,19 @@ export function buildTokenConfig(
       recipients: [
         {
           admin: tokenAdmin,
-          recipient: tokenAdmin, // Creator gets their % directly
+          recipient: tokenAdmin, // Display admin on Clanker interface
+          bps: 0,
+          token: 'Both',
+        },
+        {
+          admin: tokenAdmin,
+          recipient: rewardRecipient, // Actual Creator Reward Receiver
           bps: creatorBps,
           token: 'Both',
         },
         {
-          admin: tokenAdmin, // Admin manages the referral fee
-          recipient: rewardRecipient, // Remainder goes to the frontend/referral recipient
+          admin: tokenAdmin,
+          recipient: INTERFACE_REWARD_RECIPIENT || rewardRecipient, // Interface Fee Receiver
           bps: interfaceBps,
           token: 'Both',
         },
@@ -195,21 +206,29 @@ export function buildTokenConfig(
 
   // Advanced V4 Features
   if (options.vault) {
+    const vaultRecipient = options.vault.recipient?.trim();
     config.vault = {
       percentage: options.vault.percentage,
       lockupDuration: options.vault.lockupDuration,
       vestingDuration: options.vault.vestingDuration,
-      ...(options.vault.recipient ? { recipient: options.vault.recipient as `0x${string}` } : {})
+      ...(vaultRecipient ? { recipient: vaultRecipient as `0x${string}` } : {})
     };
   }
 
   if (options.airdrop) {
+    const merkleRoot = options.airdrop.merkleRoot?.trim();
+    const airdropAdmin = options.airdrop.admin?.trim();
+
+    // Fallback required merkle root to a valid 32-byte zero-hash if not provided but airdrop is enabled
+    // Note: If amount > 0, merkleRoot is strictly required
+    const safeMerkleRoot = merkleRoot || '0x0000000000000000000000000000000000000000000000000000000000000000';
+
     config.airdrop = {
       amount: options.airdrop.amount,
-      merkleRoot: options.airdrop.merkleRoot as `0x${string}`,
+      merkleRoot: safeMerkleRoot as `0x${string}`,
       lockupDuration: options.airdrop.lockupDuration,
       vestingDuration: options.airdrop.vestingDuration,
-      ...(options.airdrop.admin ? { admin: options.airdrop.admin as `0x${string}` } : {})
+      ...(airdropAdmin ? { admin: airdropAdmin as `0x${string}` } : {})
     };
   }
 
@@ -218,10 +237,14 @@ export function buildTokenConfig(
   }
 
   if (options.poolExtension) {
-    config.poolExtension = {
-      address: options.poolExtension.address as `0x${string}`,
-      initData: options.poolExtension.initData as `0x${string}`
-    };
+    const extAddr = options.poolExtension.address?.trim();
+    const extInit = options.poolExtension.initData?.trim();
+    if (extAddr) {
+      config.poolExtension = {
+        address: extAddr as `0x${string}`,
+        initData: (extInit || '0x') as `0x${string}`
+      };
+    }
   }
 
   return config;

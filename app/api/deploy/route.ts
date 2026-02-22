@@ -105,6 +105,12 @@ export async function POST(request: NextRequest) {
             vanity: data.vanity,
             customRpcUrl: data.customRpcUrl,
 
+            // Advanced V4 Features
+            vault: data.vault,
+            airdrop: data.airdrop,
+            presale: data.presale,
+            poolExtension: data.poolExtension,
+
             // Context
             platform: 'telegram',
             telegramUserId: session.telegramUserId,

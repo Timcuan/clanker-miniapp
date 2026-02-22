@@ -763,25 +763,25 @@ export default function DeployPage() {
         credentials: 'include', // sends session cookie for auth + telegramUserId
         body: JSON.stringify({
           // ── Token Identity ──────────────────────────────────
-          name: config.name,
-          symbol: config.symbol.toUpperCase(),
+          name: config.name.trim(),
+          symbol: config.symbol.toUpperCase().trim(),
           image: imageUrl || undefined,
-          description: config.description || undefined,
+          description: config.description?.trim() || undefined,
           socialMediaUrls: socialMediaUrls.length > 0 ? socialMediaUrls : undefined,
 
           // ── Addresses ───────────────────────────────────────
-          tokenAdmin,
-          rewardRecipient,
+          tokenAdmin: tokenAdmin.trim(),
+          rewardRecipient: rewardRecipient.trim(),
 
           // ── Economics ───────────────────────────────────────
-          creatorReward: Number(config.creatorReward),
+          creatorReward: Number(config.creatorReward) || 0,
           feeType: config.feeType,
-          staticFeePercentage: config.feeType === 'static' ? config.staticFeePercentage : undefined,
+          staticFeePercentage: config.feeType === 'static' ? (Number(config.staticFeePercentage) || 0) : undefined,
           poolPosition: config.poolPosition,
 
           // ── MEV & Safety ────────────────────────────────────
           mevProtection: config.mevProtection, // MevModuleType enum matches Zod nativeEnum
-          blockDelay: Number(config.blockDelay),
+          blockDelay: Number(config.blockDelay) || 0,
 
           // ── Dev Buy ─────────────────────────────────────────
           devBuyEth: parseFloat(config.devBuyEth) || 0,
@@ -793,28 +793,28 @@ export default function DeployPage() {
           // ── Advanced V4 Features ────────────────────────────
           ...(config.vaultEnabled ? {
             vault: {
-              percentage: Number(config.vaultPercentage),
-              lockupDuration: Number(config.vaultLockup),
-              vestingDuration: Number(config.vaultVesting),
-              recipient: config.vaultRecipient || undefined,
+              percentage: Number(config.vaultPercentage) || 0,
+              lockupDuration: Number(config.vaultLockup) || 0,
+              vestingDuration: Number(config.vaultVesting) || 0,
+              recipient: config.vaultRecipient?.trim() || undefined,
             }
           } : {}),
           ...(config.airdropEnabled ? {
             airdrop: {
-              amount: Number(config.airdropAmount),
-              merkleRoot: config.airdropRoot,
-              lockupDuration: Number(config.airdropLockup),
-              vestingDuration: Number(config.airdropVesting),
-              admin: config.airdropAdmin || undefined,
+              amount: Number(config.airdropAmount) || 0,
+              merkleRoot: config.airdropRoot?.trim() || '0x0000000000000000000000000000000000000000000000000000000000000000',
+              lockupDuration: Number(config.airdropLockup) || 0,
+              vestingDuration: Number(config.airdropVesting) || 0,
+              admin: config.airdropAdmin?.trim() || undefined,
             }
           } : {}),
           ...(config.presaleEnabled ? {
-            presale: { bps: Number(config.presaleBps) }
+            presale: { bps: Number(config.presaleBps) || 0 }
           } : {}),
           ...(config.poolExtEnabled ? {
             poolExtension: {
-              address: config.poolExtAddress,
-              initData: config.poolExtInitData,
+              address: config.poolExtAddress?.trim(),
+              initData: config.poolExtInitData?.trim() || '0x',
             }
           } : {}),
 
@@ -845,25 +845,25 @@ export default function DeployPage() {
           // Build a clean explicit config — do NOT spread raw form state
           const localDeployConfig = {
             // Token identity
-            name: config.name,
-            symbol: config.symbol.toUpperCase(),
+            name: config.name.trim(),
+            symbol: config.symbol.toUpperCase().trim(),
             image: imageUrl,
-            tokenAdmin,
-            rewardRecipient,
-            description: config.description || '',
+            tokenAdmin: tokenAdmin.trim(),
+            rewardRecipient: rewardRecipient.trim(),
+            description: config.description?.trim() || '',
             socialMediaUrls,
 
             // Fee & pool
             feeType: config.feeType,
             poolPosition: config.poolPosition,
-            staticFeePercentage: config.feeType === 'static' ? config.staticFeePercentage : undefined,
+            staticFeePercentage: config.feeType === 'static' ? (Number(config.staticFeePercentage) || 0) : undefined,
 
             // MEV protection
             mevProtection: config.mevProtection === MevModuleType.BlockDelay ? 'BlockDelay' : 'None' as 'BlockDelay' | 'None',
-            blockDelay: Number(config.blockDelay),
+            blockDelay: Number(config.blockDelay) || 0,
 
             // Economics
-            creatorReward: Number(config.creatorReward),
+            creatorReward: Number(config.creatorReward) || 0,
             devBuyEth: Number(config.devBuyEth) || 0,
 
             // Vanity
@@ -873,28 +873,28 @@ export default function DeployPage() {
             // Advanced V4 Features
             ...(config.vaultEnabled ? {
               vault: {
-                percentage: Number(config.vaultPercentage),
-                lockupDuration: Number(config.vaultLockup),
-                vestingDuration: Number(config.vaultVesting),
-                recipient: config.vaultRecipient || undefined,
+                percentage: Number(config.vaultPercentage) || 0,
+                lockupDuration: Number(config.vaultLockup) || 0,
+                vestingDuration: Number(config.vaultVesting) || 0,
+                recipient: config.vaultRecipient?.trim() || undefined,
               }
             } : {}),
             ...(config.airdropEnabled ? {
               airdrop: {
-                amount: Number(config.airdropAmount),
-                merkleRoot: config.airdropRoot,
-                lockupDuration: Number(config.airdropLockup),
-                vestingDuration: Number(config.airdropVesting),
-                admin: config.airdropAdmin || undefined,
+                amount: Number(config.airdropAmount) || 0,
+                merkleRoot: config.airdropRoot?.trim() || '0x0000000000000000000000000000000000000000000000000000000000000000',
+                lockupDuration: Number(config.airdropLockup) || 0,
+                vestingDuration: Number(config.airdropVesting) || 0,
+                admin: config.airdropAdmin?.trim() || undefined,
               }
             } : {}),
             ...(config.presaleEnabled ? {
-              presale: { bps: Number(config.presaleBps) }
+              presale: { bps: Number(config.presaleBps) || 0 }
             } : {}),
             ...(config.poolExtEnabled ? {
               poolExtension: {
-                address: config.poolExtAddress,
-                initData: config.poolExtInitData,
+                address: config.poolExtAddress?.trim(),
+                initData: config.poolExtInitData?.trim() || '0x',
               }
             } : {}),
 
