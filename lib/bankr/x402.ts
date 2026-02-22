@@ -74,6 +74,11 @@ export interface X402Response {
     txHash?: string; // x402 USDC payment tx (NOT the deployment tx)
 }
 
+const DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Clanker-MiniApp-Agent/2.5.2)',
+    'Accept': 'application/json',
+};
+
 /**
  * Executes a fetch request with automatic x402 Payment Required handling.
  */
@@ -85,7 +90,13 @@ export async function fetchWithX402(
 ): Promise<X402Response> {
     try {
         console.log(`[x402] Initial request to ${url}`);
-        const response = await fetch(url, options);
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                ...DEFAULT_HEADERS,
+                ...options.headers,
+            }
+        });
 
         if (response.status === 402) {
             console.log(`[x402] 402 Payment Required received`);
@@ -184,7 +195,13 @@ async function executePaymentAndRetry(
         retryHeaders.set('x-payment-signature', paymentTxHash);
 
         console.log(`[x402] Retrying original request with payment proof...`);
-        const retryResponse = await fetch(url, { ...options, headers: retryHeaders });
+        const retryResponse = await fetch(url, {
+            ...options,
+            headers: {
+                ...DEFAULT_HEADERS,
+                ...Object.fromEntries(retryHeaders.entries()),
+            }
+        });
 
         if (!retryResponse.ok) {
             throw new Error(`Retry failed ${retryResponse.status}: ${await retryResponse.text()}`);

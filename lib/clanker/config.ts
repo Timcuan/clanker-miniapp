@@ -144,10 +144,10 @@ export function buildTokenConfig(
 
     fees,
 
-    mevModuleConfig: {
+    mevModule: {
       type: mevModuleType,
       ...(mevModuleType === MevModuleType.BlockDelay && {
-        blockDelay: { blockDelay },
+        blockDelay,
       }),
     },
 

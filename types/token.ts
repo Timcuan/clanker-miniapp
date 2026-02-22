@@ -22,7 +22,7 @@ export interface TokenConfig {
     recipients: RewardRecipient[];
   };
   fees: FeeConfig;
-  mevModuleConfig: MevModuleConfig;
+  mevModule: MevModuleConfig;
 }
 
 export interface PoolPosition {
@@ -74,7 +74,7 @@ export type MevModuleType = 'None' | 'BlockDelay' | 'SniperAuctionV2';
 
 export interface MevModuleConfig {
   type: MevModuleType;
-  blockDelay?: { blockDelay: number };
+  blockDelay?: number;
 }
 
 // Pool position presets
