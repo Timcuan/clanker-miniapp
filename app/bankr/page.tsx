@@ -64,7 +64,7 @@ export default function BankrPage() {
                         </div>
                         <div>
                             <h1 className="font-display font-bold text-sm text-purple-400">Agent Bankr</h1>
-                            <p className="font-mono text-[10px] text-gray-400">v2.0.0-alpha</p>
+                            <p className="font-mono text-[10px] text-gray-400">v2.8.0</p>
                         </div>
                     </div>
                 </div>
@@ -94,10 +94,10 @@ export default function BankrPage() {
                         >
                             <div
                                 className={`max-w-[85%] rounded-2xl p-3 sm:p-4 ${msg.role === 'user'
-                                        ? 'bg-umkm-primary/20 border border-umkm-primary/30 text-umkm-light'
-                                        : msg.role === 'system'
-                                            ? 'bg-red-500/10 border border-red-500/30 text-red-200'
-                                            : 'bg-umkm-light/5 border border-umkm-light/10 text-gray-200'
+                                    ? 'bg-umkm-primary/20 border border-umkm-primary/30 text-umkm-light'
+                                    : msg.role === 'system'
+                                        ? 'bg-red-500/10 border border-red-500/30 text-red-200'
+                                        : 'bg-umkm-light/5 border border-umkm-light/10 text-gray-200'
                                     }`}
                             >
                                 <div className="flex items-center gap-2 mb-1.5 opacity-60">
