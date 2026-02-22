@@ -86,6 +86,14 @@ export class ClankerService {
         devBuyEth: options.devBuyEth,
         salt: options.salt,
 
+        // Advanced V4 Options
+        staticFeePercentage: options.staticFeePercentage,
+        vanity: options.vanity,
+        vault: options.vault,
+        airdrop: options.airdrop,
+        presale: options.presale,
+        poolExtension: options.poolExtension,
+
         // Context
         platform: options.platform,
         telegramUserId: options.telegramUserId,

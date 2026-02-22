@@ -25,6 +25,28 @@ export interface DeployTokenConfig extends TokenInputData {
   staticFeePercentage?: number;
   vanity?: boolean;
 
+  // V4 Advanced Features
+  vault?: {
+    percentage: number;
+    lockupDuration: number;
+    vestingDuration: number;
+    recipient?: string;
+  };
+  airdrop?: {
+    amount: number;
+    merkleRoot: string;
+    lockupDuration: number;
+    vestingDuration: number;
+    admin?: string;
+  };
+  presale?: {
+    bps: number;
+  };
+  poolExtension?: {
+    address: string;
+    initData: string;
+  };
+
   // Platform context
   platform?: 'telegram' | 'web' | string;
   telegramUser?: TelegramUser;
@@ -100,6 +122,11 @@ export async function deployToken(
       platform: config.platform,
       telegramUserId: config.telegramUserId,
       staticFeePercentage: config.staticFeePercentage,
+      vanity: config.vanity,
+      vault: config.vault,
+      airdrop: config.airdrop,
+      presale: config.presale,
+      poolExtension: config.poolExtension,
     });
 
     console.log('Deploying token with config:', {
@@ -185,6 +212,11 @@ export async function simulateDeployment(
       platform: config.platform,
       telegramUserId: config.telegramUserId,
       staticFeePercentage: config.staticFeePercentage,
+      vanity: config.vanity,
+      vault: config.vault,
+      airdrop: config.airdrop,
+      presale: config.presale,
+      poolExtension: config.poolExtension,
     });
 
     // Simulate
