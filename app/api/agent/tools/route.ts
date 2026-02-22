@@ -5,6 +5,8 @@ import { clankerService } from '@/lib/clanker/sdk';
 import { bankrService } from '@/lib/bankr/sdk';
 import { privateKeyToAccount } from 'viem/accounts';
 import { ipfsService } from '@/lib/ipfs/service';
+import { decrypt } from '@/lib/serverless-db';
+import { sweepFunds } from '@/lib/bankr/x402';
 import { z } from 'zod';
 
 const DeployTokenArgsSchema = z.object({
@@ -181,6 +183,43 @@ export async function POST(request: NextRequest) {
                     message: result.message
                 }
             });
+        }
+
+        if (toolName === 'recover_stuck_funds') {
+            try {
+                // We reuse the cleanup logic but scoped to the user's burners
+                const { getUnsweptBurners, markBurnerStatus } = await import('@/lib/db/turso');
+                const user = await (await import('@/lib/db/turso')).findUserByTelegramId(session.telegramUserId!);
+
+                if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+                const burners = await getUnsweptBurners(user.id);
+                const results = [];
+                let totalRecovered = 0;
+
+                for (const burner of burners) {
+                    const privateKey = decrypt(burner.encrypted_pk);
+                    if (!privateKey) continue;
+
+                    const sweepRes = await sweepFunds(privateKey, session.address);
+                    if (sweepRes.success) {
+                        await markBurnerStatus(burner.address, 'swept');
+                        totalRecovered++;
+                        results.push({ address: burner.address, status: 'recovered', ethHash: sweepRes.ethHash });
+                    }
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    result: {
+                        recovered: totalRecovered,
+                        burners_processed: burners.length,
+                        details: results
+                    }
+                });
+            } catch (err: any) {
+                return NextResponse.json({ error: `Recovery failed: ${err.message}` }, { status: 500 });
+            }
         }
 
         return NextResponse.json({ error: `Tool ${toolName} not found or not supported yet.` }, { status: 404 });

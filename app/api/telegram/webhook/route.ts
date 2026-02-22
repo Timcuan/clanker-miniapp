@@ -8,7 +8,7 @@ function getEnv(key: string, fallback = '') {
 }
 
 const APP_URL = getEnv('NEXT_PUBLIC_APP_URL', 'https://clanker-terminal.netlify.app');
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.8.0';
 
 interface Btn { text: string; web_app?: { url: string }; callback_data?: string; }
 interface TgUpdate {

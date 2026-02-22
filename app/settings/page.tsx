@@ -290,7 +290,7 @@ export default function SettingsPage() {
             <ClankerLogo size="sm" animated={false} />
           </div>
           <p className="text-[10px] text-gray-400 font-mono">
-            UMKM Terminal v2.0.0<br />Powered by Clanker SDK
+            UMKM Terminal v2.8.0<br />Powered by Clanker SDK
           </p>
         </div>
 

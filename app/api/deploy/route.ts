@@ -47,6 +47,22 @@ export async function POST(request: NextRequest) {
 
         const data = result_val.data;
 
+        // ── Pre-flight Logging ────────────────────────────────────────────────
+        let dbDeploymentId: number | undefined;
+        try {
+            const { findUserByTelegramId, createDeployment, updateDeployment } = await import('@/lib/db/turso');
+            if (session.telegramUserId) {
+                const user = await findUserByTelegramId(session.telegramUserId);
+                if (user) {
+                    const record = await createDeployment(user.id, data.name, data.symbol, data.image);
+                    dbDeploymentId = record.id;
+                    console.log(`[Deploy API] Pre-flight logged: ID ${dbDeploymentId}`);
+                }
+            }
+        } catch (dbErr) {
+            console.error('[Deploy API] Pre-flight logging failed (non-fatal):', dbErr);
+        }
+
         // Call service to deploy
         const result = await clankerService.deployToken(session.privateKey, {
             ...data,
@@ -67,6 +83,21 @@ export async function POST(request: NextRequest) {
             platform: 'telegram',
             telegramUserId: session.telegramUserId,
         });
+
+        // ── Post-deployment Logging ───────────────────────────────────────────
+        if (dbDeploymentId) {
+            try {
+                const { updateDeployment } = await import('@/lib/db/turso');
+                await updateDeployment(dbDeploymentId, {
+                    status: result.success ? 'success' : 'failed',
+                    token_address: result.tokenAddress,
+                    tx_hash: result.txHash,
+                    error_message: result.success ? undefined : (result.error || 'Unknown deployment error'),
+                });
+            } catch (updateErr) {
+                console.error('[Deploy API] Post-flight update failed:', updateErr);
+            }
+        }
 
         if (!result.success) {
             return NextResponse.json({ error: result.error || 'Deployment failed' }, { status: 400 });

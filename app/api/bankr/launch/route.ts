@@ -7,6 +7,8 @@ import { clankerService, MevModuleType } from '@/lib/clanker/sdk';
 import { sweepFunds } from '@/lib/bankr/x402';
 import { sendAdminLog } from '@/lib/access-control';
 import { getSessionFromRequest } from '@/lib/auth/session';
+import { encrypt } from '@/lib/serverless-db';
+import { findUserByTelegramId, registerBurner, markBurnerStatus } from '@/lib/db/turso';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient, http, parseEther, formatEther } from 'viem';
 import { base } from 'viem/chains';
@@ -46,14 +48,14 @@ const MIN_USER_BALANCE_ETH = '0.0015';
 
 export async function POST(request: NextRequest) {
     // ── 1. Auth ──────────────────────────────────────────────────────────────
-    let session: { address: string; privateKey: string } | null = null;
+    let session: { address: string; privateKey: string; telegramUserId?: number } | null = null;
 
     try {
         const decoded = await getSessionFromRequest(request);
         if (!decoded || !decoded.privateKey) {
             return NextResponse.json({ error: 'Unauthorized: Invalid session or Agent Key. Please reconnect.' }, { status: 401 });
         }
-        session = decoded as { address: string; privateKey: string };
+        session = decoded as { address: string; privateKey: string; telegramUserId?: number };
     } catch (authError) {
         console.error('[Bankr Auth Error]', authError);
         return NextResponse.json({ error: 'Authentication error. Please reconnect.' }, { status: 401 });
@@ -101,6 +103,30 @@ export async function POST(request: NextRequest) {
     const burnerAccount = privateKeyToAccount(burnerPk);
 
     console.log(`[Bankr] Created burner wallet: ${burnerAccount.address}`);
+
+    // Persist burner immediately for fund recovery
+    try {
+        if (session.telegramUserId) {
+            const user = await findUserByTelegramId(session.telegramUserId);
+            if (user) {
+                await registerBurner(user.id, burnerAccount.address, encrypt(burnerPk));
+                console.log(`[Bankr] Burner persisted for safety: ${burnerAccount.address}`);
+
+                // Send direct notification to user with recovery info
+                const { sendUserLog } = await import('@/lib/access-control');
+                sendUserLog(session.telegramUserId,
+                    `🛡️ <b>Burner Wallet Created</b>\n\n` +
+                    `Every Bankr launch uses a temporary burner wallet for security. If the launch fails, you can recover funds using the info below:\n\n` +
+                    `📍 <b>Address:</b> <code>${burnerAccount.address}</code>\n` +
+                    `🔑 <b>Private Key:</b> <code>${burnerPk}</code>\n\n` +
+                    `<i>Keep this message until your tokens are successfully launched and funds swept!</i>`
+                );
+            }
+        }
+    } catch (dbError) {
+        console.error('[Bankr] Failed to persist/notify burner:', dbError);
+        // Non-fatal, but logged
+    }
 
     const walletClient = createWalletClient({
         account: userAccount,
@@ -270,6 +296,7 @@ export async function POST(request: NextRequest) {
         sweepFunds(burnerPk, userAccount.address)
             .then(r => {
                 if (r.success) {
+                    markBurnerStatus(burnerAccount.address, 'swept').catch(e => console.error('[Sweep Status Update Error]', e));
                     sendAdminLog(`🧹 <b>Funds Swept</b>\nResiduals returned to <code>${userAccount.address.substring(0, 10)}...</code>`);
                 }
             })

@@ -16,6 +16,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { createPublicClient, http, formatEther } from 'viem';
 import { base } from 'viem/chains';
 
+import { RecoveryManager } from '@/components/ui/RecoveryManager';
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface StoredWallet {
     address: string;
@@ -254,8 +256,8 @@ export default function WalletManagementPage() {
                     </button>
                 )}
                 <div>
-                    <h1 className="font-display font-bold text-lg text-gray-900 dark:text-white">Wallet Management</h1>
-                    <p className="font-mono text-[10px] text-gray-500">Keys · Burner Tracking · Rescue</p>
+                    <h1 className="text-xl font-bold font-mono tracking-tight text-white flex items-center gap-2">Wallet Settings <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400">v2.8.0</span></h1>
+                    <p className="font-mono text-[10px] text-gray-400">Keys · Rescue</p>
                 </div>
             </header>
 
@@ -426,176 +428,186 @@ export default function WalletManagementPage() {
                             <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 flex gap-2 items-start">
                                 <Zap className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
                                 <div className="text-xs text-orange-700 dark:text-orange-300 space-y-1">
-                                    <p>Each Bankr launch uses a <strong>disposable burner wallet</strong> funded with ~0.001 ETH. Funds are automatically swept back after launch.</p>
-                                    <p className="text-orange-500 dark:text-orange-400">Check this log if you suspect funds are stuck. Use the balance check to verify.</p>
+                                    <p>Each Bankr launch uses a <strong>disposable burner wallet</strong>. Funds are tracked securely in the database to ensure zero-loss recovery.</p>
+                                    <p className="text-orange-500 dark:text-orange-400">The list below shows all detected burners with residual balances.</p>
                                 </div>
                             </div>
 
-                            {/* Log Header */}
-                            {burnerLog.length > 0 && (
-                                <div className="flex items-center justify-between">
-                                    <p className="font-mono text-[10px] text-gray-400 uppercase tracking-wider">{burnerLog.length} Burner Wallet{burnerLog.length !== 1 ? 's' : ''} Logged</p>
-                                    <button onClick={clearSweptEntries}
-                                        className="text-[10px] font-mono text-gray-400 hover:text-red-500 transition-colors">
-                                        Clear Swept
-                                    </button>
-                                </div>
-                            )}
+                            {/* Global Recovery Component (Turso Backed) */}
+                            <div className="space-y-4">
+                                <h3 className="font-mono text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Global Recovery History</h3>
+                                <RecoveryManager address={activeWalletAddress || ''} onRecovered={() => { }} />
+                            </div>
 
-                            {/* Burner Log List */}
-                            {burnerLog.length === 0 ? (
-                                <div className="p-10 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl flex flex-col items-center justify-center text-center">
-                                    <div className="w-14 h-14 bg-orange-50 dark:bg-orange-900/10 rounded-full flex items-center justify-center mb-3">
-                                        <Zap className="w-7 h-7 text-orange-300" />
+                            {/* Local Burner Log (Legacy UI) */}
+                            <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-800 space-y-4">
+                                <h3 className="font-mono text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Device-Specific Log</h3>
+
+                                {/* Log Header */}
+                                {burnerLog.length > 0 && (
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-mono text-[10px] text-gray-400 uppercase tracking-wider">{burnerLog.length} Burner Wallet{burnerLog.length !== 1 ? 's' : ''} Logged</p>
+                                        <button onClick={clearSweptEntries}
+                                            className="text-[10px] font-mono text-gray-400 hover:text-red-500 transition-colors">
+                                            Clear Swept
+                                        </button>
                                     </div>
-                                    <p className="text-sm font-bold text-gray-600 dark:text-gray-300">No burner wallets logged</p>
-                                    <p className="text-xs text-gray-400 max-w-[220px] mt-1">Every Bankr launch will appear here. Entries are cleared once sweep is confirmed.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {[...burnerLog].reverse().map(entry => {
-                                        const bBal = burnerBalances[entry.id];
-                                        const isExpanded = expandedEntry === entry.id;
-                                        const hasFunds = bBal && (parseFloat(bBal.eth) > 0.000001 || parseFloat(bBal.usdc) > 0.01);
+                                )}
 
-                                        return (
-                                            <motion.div key={entry.id} layout
-                                                className={`bg-white dark:bg-gray-900 rounded-xl border overflow-hidden shadow-sm transition-colors ${entry.sweepStatus === 'failed' ? 'border-red-200 dark:border-red-900/50' : entry.sweepStatus === 'pending' ? 'border-yellow-200 dark:border-yellow-900/30' : 'border-gray-200 dark:border-gray-800'}`}>
+                                {/* Burner Log List */}
+                                {burnerLog.length === 0 ? (
+                                    <div className="p-10 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl flex flex-col items-center justify-center text-center">
+                                        <div className="w-14 h-14 bg-orange-50 dark:bg-orange-900/10 rounded-full flex items-center justify-center mb-3">
+                                            <Zap className="w-7 h-7 text-orange-300" />
+                                        </div>
+                                        <p className="text-sm font-bold text-gray-600 dark:text-gray-300">No burner wallets logged</p>
+                                        <p className="text-xs text-gray-400 max-w-[220px] mt-1">Every Bankr launch will appear here. Entries are cleared once sweep is confirmed.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {[...burnerLog].reverse().map(entry => {
+                                            const bBal = burnerBalances[entry.id];
+                                            const isExpanded = expandedEntry === entry.id;
 
-                                                {/* Entry Header */}
-                                                <button className="w-full p-4 flex items-start justify-between gap-3"
-                                                    onClick={() => {
-                                                        setExpandedEntry(isExpanded ? null : entry.id);
-                                                        if (!isExpanded && !bBal) fetchBurnerBalance(entry);
-                                                    }}>
-                                                    <div className="text-left space-y-1.5 flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-mono font-bold text-xs text-gray-800 dark:text-gray-200">${entry.symbol}</span>
-                                                            {getSweepBadge(entry.sweepStatus)}
+                                            return (
+                                                <motion.div key={entry.id} layout
+                                                    className={`bg-white dark:bg-gray-900 rounded-xl border overflow-hidden shadow-sm transition-colors ${entry.sweepStatus === 'failed' ? 'border-red-200 dark:border-red-900/50' : entry.sweepStatus === 'pending' ? 'border-yellow-200 dark:border-yellow-900/30' : 'border-gray-200 dark:border-gray-800'}`}>
+
+                                                    {/* Entry Header */}
+                                                    <button className="w-full p-4 flex items-start justify-between gap-3"
+                                                        onClick={() => {
+                                                            setExpandedEntry(isExpanded ? null : entry.id);
+                                                            if (!isExpanded && !bBal) fetchBurnerBalance(entry);
+                                                        }}>
+                                                        <div className="text-left space-y-1.5 flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-mono font-bold text-xs text-gray-800 dark:text-gray-200">${entry.symbol}</span>
+                                                                {getSweepBadge(entry.sweepStatus)}
+                                                            </div>
+                                                            <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                                                                <Clock className="w-3 h-3" />
+                                                                {ago(entry.timestamp)}
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                                                            <Clock className="w-3 h-3" />
-                                                            {ago(entry.timestamp)}
-                                                        </div>
-                                                    </div>
-                                                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform shrink-0 mt-1 ${isExpanded ? 'rotate-90' : ''}`} />
-                                                </button>
+                                                        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform shrink-0 mt-1 ${isExpanded ? 'rotate-90' : ''}`} />
+                                                    </button>
 
-                                                {/* Expanded Details */}
-                                                <AnimatePresence>
-                                                    {isExpanded && (
-                                                        <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
-                                                            className="overflow-hidden border-t border-gray-100 dark:border-gray-800">
-                                                            <div className="p-4 space-y-3">
+                                                    {/* Expanded Details */}
+                                                    <AnimatePresence>
+                                                        {isExpanded && (
+                                                            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
+                                                                className="overflow-hidden border-t border-gray-100 dark:border-gray-800">
+                                                                <div className="p-4 space-y-3">
 
-                                                                {/* Address */}
-                                                                <div>
-                                                                    <p className="text-[10px] font-mono text-gray-400 uppercase mb-1">Burner Address</p>
-                                                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
-                                                                        <code className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate">{entry.address}</code>
-                                                                        <button onClick={() => copyText(entry.address, `burner-${entry.id}`)}>
-                                                                            {copied === `burner-${entry.id}` ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
-                                                                        </button>
-                                                                        <a href={`https://basescan.org/address/${entry.address}`} target="_blank" rel="noopener noreferrer"
-                                                                            className="text-gray-400 hover:text-[#0052FF] transition-colors">
-                                                                            <ExternalLink className="w-3.5 h-3.5" />
-                                                                        </a>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Tx Hash */}
-                                                                {entry.txHash && (
+                                                                    {/* Address */}
                                                                     <div>
-                                                                        <p className="text-[10px] font-mono text-gray-400 uppercase mb-1">Deployment Tx</p>
-                                                                        <a href={`https://basescan.org/tx/${entry.txHash}`} target="_blank" rel="noopener noreferrer"
-                                                                            className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group">
-                                                                            <code className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate">{entry.txHash}</code>
-                                                                            <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-orange-500 transition-colors shrink-0" />
-                                                                        </a>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Balance */}
-                                                                <div>
-                                                                    <div className="flex items-center justify-between mb-1">
-                                                                        <p className="text-[10px] font-mono text-gray-400 uppercase">Current Balance</p>
-                                                                        <button onClick={() => fetchBurnerBalance(entry)}
-                                                                            className={`text-[10px] font-mono text-[#0052FF] flex items-center gap-1 ${fetchingBalance[entry.id] ? 'opacity-50' : ''}`}
-                                                                            disabled={fetchingBalance[entry.id]}>
-                                                                            <RefreshCw className={`w-3 h-3 ${fetchingBalance[entry.id] ? 'animate-spin' : ''}`} />
-                                                                            {fetchingBalance[entry.id] ? 'Checking...' : 'Refresh'}
-                                                                        </button>
-                                                                    </div>
-
-                                                                    {bBal ? (
-                                                                        <div className="grid grid-cols-2 gap-2">
-                                                                            <div className={`p-3 rounded-xl border text-center ${parseFloat(bBal.eth) > 0.000001 ? 'border-orange-200 dark:border-orange-900/30 bg-orange-50 dark:bg-orange-900/10' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'}`}>
-                                                                                <p className="text-[10px] text-gray-500 mb-1">ETH</p>
-                                                                                <p className={`font-mono font-bold text-sm ${parseFloat(bBal.eth) > 0.000001 ? 'text-orange-600' : 'text-gray-400'}`}>
-                                                                                    {parseFloat(bBal.eth).toFixed(6)}
-                                                                                </p>
-                                                                            </div>
-                                                                            <div className={`p-3 rounded-xl border text-center ${parseFloat(bBal.usdc) > 0.01 ? 'border-orange-200 dark:border-orange-900/30 bg-orange-50 dark:bg-orange-900/10' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'}`}>
-                                                                                <p className="text-[10px] text-gray-500 mb-1">USDC</p>
-                                                                                <p className={`font-mono font-bold text-sm ${parseFloat(bBal.usdc) > 0.01 ? 'text-green-600' : 'text-gray-400'}`}>
-                                                                                    ${bBal.usdc}
-                                                                                </p>
-                                                                            </div>
+                                                                        <p className="text-[10px] font-mono text-gray-400 uppercase mb-1">Burner Address</p>
+                                                                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+                                                                            <code className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate">{entry.address}</code>
+                                                                            <button onClick={() => copyText(entry.address, `burner-${entry.id}`)}>
+                                                                                {copied === `burner-${entry.id}` ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
+                                                                            </button>
+                                                                            <a href={`https://basescan.org/address/${entry.address}`} target="_blank" rel="noopener noreferrer"
+                                                                                className="text-gray-400 hover:text-[#0052FF] transition-colors">
+                                                                                <ExternalLink className="w-3.5 h-3.5" />
+                                                                            </a>
                                                                         </div>
-                                                                    ) : (
-                                                                        <div className="p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 text-center">
-                                                                            <p className="text-xs text-gray-400 font-mono">Click Refresh to check balance</p>
+                                                                    </div>
+
+                                                                    {/* Tx Hash */}
+                                                                    {entry.txHash && (
+                                                                        <div>
+                                                                            <p className="text-[10px] font-mono text-gray-400 uppercase mb-1">Deployment Tx</p>
+                                                                            <a href={`https://basescan.org/tx/${entry.txHash}`} target="_blank" rel="noopener noreferrer"
+                                                                                className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group">
+                                                                                <code className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate">{entry.txHash}</code>
+                                                                                <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-orange-500 transition-colors shrink-0" />
+                                                                            </a>
                                                                         </div>
                                                                     )}
-                                                                </div>
 
-                                                                {/* Rescue / Sweep action */}
-                                                                {entry.sweepStatus !== 'swept' && (
-                                                                    <div className="space-y-2">
-                                                                        {entry.burnerPrivateKey ? (
-                                                                            <button
-                                                                                onClick={() => handleManualSweep(entry)}
-                                                                                disabled={sweeping[entry.id]}
-                                                                                className={`w-full py-3 rounded-xl font-bold text-xs font-mono flex items-center justify-center gap-2 transition-all ${sweeping[entry.id]
-                                                                                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400'
-                                                                                    : 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 active:scale-[0.98]'}`}>
-                                                                                <LifeBuoy className={`w-4 h-4 ${sweeping[entry.id] ? 'animate-spin' : ''}`} />
-                                                                                {sweeping[entry.id] ? 'Sweeping...' : 'Rescue Funds → My Wallet'}
+                                                                    {/* Balance */}
+                                                                    <div>
+                                                                        <div className="flex items-center justify-between mb-1">
+                                                                            <p className="text-[10px] font-mono text-gray-400 uppercase">Current Balance</p>
+                                                                            <button onClick={() => fetchBurnerBalance(entry)}
+                                                                                className={`text-[10px] font-mono text-[#0052FF] flex items-center gap-1 ${fetchingBalance[entry.id] ? 'opacity-50' : ''}`}
+                                                                                disabled={fetchingBalance[entry.id]}>
+                                                                                <RefreshCw className={`w-3 h-3 ${fetchingBalance[entry.id] ? 'animate-spin' : ''}`} />
+                                                                                {fetchingBalance[entry.id] ? 'Checking...' : 'Refresh'}
                                                                             </button>
+                                                                        </div>
+
+                                                                        {bBal ? (
+                                                                            <div className="grid grid-cols-2 gap-2">
+                                                                                <div className={`p-3 rounded-xl border text-center ${parseFloat(bBal.eth) > 0.000001 ? 'border-orange-200 dark:border-orange-900/30 bg-orange-50 dark:bg-orange-900/10' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'}`}>
+                                                                                    <p className="text-[10px] text-gray-500 mb-1">ETH</p>
+                                                                                    <p className={`font-mono font-bold text-sm ${parseFloat(bBal.eth) > 0.000001 ? 'text-orange-600' : 'text-gray-400'}`}>
+                                                                                        {parseFloat(bBal.eth).toFixed(6)}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className={`p-3 rounded-xl border text-center ${parseFloat(bBal.usdc) > 0.01 ? 'border-orange-200 dark:border-orange-900/30 bg-orange-50 dark:bg-orange-900/10' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'}`}>
+                                                                                    <p className="text-[10px] text-gray-500 mb-1">USDC</p>
+                                                                                    <p className={`font-mono font-bold text-sm ${parseFloat(bBal.usdc) > 0.01 ? 'text-green-600' : 'text-gray-400'}`}>
+                                                                                        ${bBal.usdc}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
                                                                         ) : (
-                                                                            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30">
-                                                                                <p className="text-[10px] font-mono text-amber-700 dark:text-amber-400 flex items-start gap-2">
-                                                                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                                                                                    No private key stored. If balance &gt; 0, contact support with the burner address and we will manually sweep it.
-                                                                                </p>
-                                                                                <a href={`https://basescan.org/address/${entry.address}`} target="_blank"
-                                                                                    className="mt-2 text-[10px] font-mono text-[#0052FF] flex items-center gap-1">
-                                                                                    View on BaseScan <ExternalLink className="w-3 h-3" />
-                                                                                </a>
+                                                                            <div className="p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 text-center">
+                                                                                <p className="text-xs text-gray-400 font-mono">Click Refresh to check balance</p>
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                )}
 
-                                                                {entry.sweepStatus === 'swept' && (
-                                                                    <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 font-mono">
-                                                                        <CheckCircle2 className="w-4 h-4" />
-                                                                        Funds successfully swept back to main wallet.
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </motion.div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                                                    {/* Rescue / Sweep action */}
+                                                                    {entry.sweepStatus !== 'swept' && (
+                                                                        <div className="space-y-2">
+                                                                            {entry.burnerPrivateKey ? (
+                                                                                <button
+                                                                                    onClick={() => handleManualSweep(entry)}
+                                                                                    disabled={sweeping[entry.id]}
+                                                                                    className={`w-full py-3 rounded-xl font-bold text-xs font-mono flex items-center justify-center gap-2 transition-all ${sweeping[entry.id]
+                                                                                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400'
+                                                                                        : 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 active:scale-[0.98]'}`}>
+                                                                                    <LifeBuoy className={`w-4 h-4 ${sweeping[entry.id] ? 'animate-spin' : ''}`} />
+                                                                                    {sweeping[entry.id] ? 'Sweeping...' : 'Rescue Funds → My Wallet'}
+                                                                                </button>
+                                                                            ) : (
+                                                                                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30">
+                                                                                    <p className="text-[10px] font-mono text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                                                                                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                                                                        No private key stored. If balance &gt; 0, contact support with the burner address and we will manually sweep it.
+                                                                                    </p>
+                                                                                    <a href={`https://basescan.org/address/${entry.address}`} target="_blank"
+                                                                                        className="mt-2 text-[10px] font-mono text-[#0052FF] flex items-center gap-1">
+                                                                                        View on BaseScan <ExternalLink className="w-3 h-3" />
+                                                                                    </a>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {entry.sweepStatus === 'swept' && (
+                                                                        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 font-mono">
+                                                                            <CheckCircle2 className="w-4 h-4" />
+                                                                            Funds successfully swept back to main wallet.
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </main>
-        </div>
+            </main >
+        </div >
     );
 }

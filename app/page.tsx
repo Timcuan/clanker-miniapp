@@ -8,7 +8,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { Terminal, TerminalLine, TerminalLoader, ResponsiveAscii } from '@/components/ui/Terminal';
 import { MatrixRain } from '@/components/ui/GlitchText';
 import { CLIButton, CLICard, CLIInput, StatusBadge } from '@/components/ui/CLIButton';
-import { Key, Zap, Shield, ArrowRight, LogOut, Settings, Info, X, Check, Copy, Rocket } from 'lucide-react';
+import { Key, Zap, Shield, ArrowRight, LogOut, Settings, Info, X, Check, Copy, Rocket, AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import ClankerLogo from '@/components/ui/ClankerLogo';
 import AboutSection from '@/components/ui/AboutSection';
@@ -176,6 +176,26 @@ export default function HomePage() {
     router.push('/bankr/launch');
   };
 
+  const [stuckFundsCount, setStuckFundsCount] = useState(0);
+
+  // Check for stuck funds
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkStuckFunds = async () => {
+        try {
+          const r = await fetch('/api/bankr/recover');
+          const d = await r.json();
+          if (d.success && d.burners.length > 0) {
+            setStuckFundsCount(d.burners.length);
+          }
+        } catch (e) {
+          console.error('Failed to check for stuck funds', e);
+        }
+      };
+      checkStuckFunds();
+    }
+  }, [isAuthenticated]);
+
   // Helper to format balance with USD
   const formatBalance = (bal: string | null) => {
     if (!bal) return 'Loading...';
@@ -236,6 +256,33 @@ export default function HomePage() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-start sm:justify-center px-3 sm:px-4 py-4 relative z-10 overflow-y-auto">
         <div className="w-full max-w-lg sm:max-w-2xl">
+          {/* Global Recovery Banner */}
+          <AnimatePresence>
+            {isAuthenticated && stuckFundsCount > 0 && !showAbout && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="mb-4"
+              >
+                <CLICard onClick={() => router.push('/bankr/launch')} className="!bg-orange-500/10 border-orange-500/30 dark:border-orange-500/20 cursor-pointer group">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                        <AlertTriangle className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="text-[11px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-tight">Detected Stuck Funds ({stuckFundsCount})</h4>
+                        <p className="text-[10px] font-mono text-orange-500/80">Funds found in your burner history. Tap to recover.</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-orange-500 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CLICard>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* About Section - Overlay */}
           <AnimatePresence>
             {showAbout && (
@@ -543,7 +590,7 @@ export default function HomePage() {
       < footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md transition-colors" >
         <div className="flex items-center justify-between max-w-lg sm:max-w-2xl mx-auto">
           <p className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">
-            UMKM v2.1.0
+            UMKM v2.8.0
           </p>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] sm:text-xs text-gray-400 dark:text-gray-600">Base</span>

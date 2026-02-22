@@ -72,5 +72,13 @@ export const MCP_TOOLS = [
             },
             required: ['imageData']
         }
+    },
+    {
+        name: 'recover_stuck_funds',
+        description: 'Scan and automatically recover ETH/USDC from any "stuck" burner wallets associated with the user account.',
+        inputSchema: {
+            type: 'object',
+            properties: {}
+        }
     }
 ];

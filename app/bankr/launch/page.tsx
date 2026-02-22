@@ -11,8 +11,9 @@ import {
 import { useTelegramContext } from '@/components/layout/TelegramProvider';
 import { useWallet } from '@/contexts/WalletContext';
 import { showBackButton, hideBackButton, hapticFeedback } from '@/lib/telegram/webapp';
-import { Terminal, TerminalLine } from '@/components/ui/Terminal';
-import { CLIButton, CLICard, StatusBadge } from '@/components/ui/CLIButton';
+import { Terminal, TerminalLine, TerminalLoader } from '@/components/ui/Terminal';
+import { RecoveryManager } from '@/components/ui/RecoveryManager';
+import { CLIButton, CLICard, CLIInput, StatusBadge } from '@/components/ui/CLIButton';
 import { shortenAddress } from '@/lib/utils';
 import { createPublicClient, http, formatUnits } from 'viem';
 import { base } from 'viem/chains';
@@ -86,7 +87,7 @@ function MobileInput({
         }
     };
 
-    const cls = `w-full bg-slate-50/50 dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50' : 'border-gray-100 dark:border-gray-800'} rounded-xl px-4 py-3 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/5 transition-all shadow-sm`;
+    const cls = `w-full bg-slate-50/50 dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50' : 'border-gray-100 dark:border-gray-800'} rounded-xl px-4 py-3 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/ transition-all shadow-sm`;
 
     return (
         <div className="space-y-1.5">
@@ -745,11 +746,12 @@ export default function BankrLaunchPage() {
                                             Review
                                         </CLIButton>
                                     </div>
+
+                                    {/* Stuck Funds Recovery */}
+                                    <RecoveryManager address={address || ''} onRecovered={refreshBalance} />
                                 </Terminal>
                             </motion.div>
                         )}
-
-                        {/* ─── REVIEW ─────────────────────────────────────────────────────── */}
                         {step === 'review' && (
                             <motion.div key="review" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
@@ -857,100 +859,110 @@ export default function BankrLaunchPage() {
                                     </div>
                                 </div>
                             </motion.div>
-                        )}
+                        )
+                        }
 
                         {/* ─── SUCCESS ────────────────────────────────────────────────────── */}
-                        {step === 'success' && deployResult && (
-                            <motion.div key="success" initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                                className="py-6 flex flex-col items-center w-full text-center">
+                        {
+                            step === 'success' && deployResult && (
+                                <motion.div key="success" initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                                    className="py-6 flex flex-col items-center w-full text-center">
 
-                                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl border-4 border-white dark:border-gray-900 ring-8 ${deployResult.deployedViaFallback ? 'bg-amber-50 ring-amber-500/10' : 'bg-emerald-50 ring-emerald-500/10'}`}>
-                                    <div className={`p-4 rounded-full ${deployResult.deployedViaFallback ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
-                                        <Check className={`w-10 h-10 ${deployResult.deployedViaFallback ? 'text-amber-600' : 'text-emerald-600'}`} />
+                                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl border-4 border-white dark:border-gray-900 ring-8 ${deployResult.deployedViaFallback ? 'bg-amber-50 ring-amber-500/10' : 'bg-emerald-50 ring-emerald-500/10'}`}>
+                                        <div className={`p-4 rounded-full ${deployResult.deployedViaFallback ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
+                                            <Check className={`w-10 h-10 ${deployResult.deployedViaFallback ? 'text-amber-600' : 'text-emerald-600'}`} />
+                                        </div>
                                     </div>
-                                </div>
 
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                    {deployResult.deployedViaFallback ? 'Deployed via Fallback' : 'Mission Accomplished'}
-                                </h2>
-                                <p className="text-gray-500 text-xs mb-8 max-w-[280px] leading-relaxed">
-                                    {deployResult.deployedViaFallback
-                                        ? 'Bankr Agent was busy. Token successfully deployed via Clanker SDK core.'
-                                        : 'Your token is live on Base via Bankr AI Agent protocol.'}
-                                </p>
+                                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {deployResult.deployedViaFallback ? 'Deployed via Fallback' : 'Mission Accomplished'}
+                                    </h2>
+                                    <p className="text-gray-500 text-xs mb-8 max-w-[280px] leading-relaxed">
+                                        {deployResult.deployedViaFallback
+                                            ? 'Bankr Agent was busy. Token successfully deployed via Clanker SDK core.'
+                                            : 'Your token is live on Base via Bankr AI Agent protocol.'}
+                                    </p>
 
-                                {deployResult.txHash && (
-                                    <div className="w-full bg-white/50 dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm mb-6 text-left relative overflow-hidden max-w-sm">
-                                        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${deployResult.deployedViaFallback ? 'from-amber-400 to-orange-500' : 'from-emerald-400 to-teal-500'}`} />
-                                        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5">Transaction Hash</p>
-                                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer group hover:border-orange-200 transition-colors"
-                                            onClick={() => copyField(deployResult.txHash!, 'tx')}>
-                                            <code className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-mono">{deployResult.txHash}</code>
-                                            <div className="text-gray-400 group-hover:text-gray-600">
-                                                {copiedField === 'tx' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                    {deployResult.txHash && (
+                                        <div className="w-full bg-white/50 dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm mb-6 text-left relative overflow-hidden max-w-sm">
+                                            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${deployResult.deployedViaFallback ? 'from-amber-400 to-orange-500' : 'from-emerald-400 to-teal-500'}`} />
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5">Transaction Hash</p>
+                                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer group hover:border-orange-200 transition-colors"
+                                                onClick={() => copyField(deployResult.txHash!, 'tx')}>
+                                                <code className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-mono">{deployResult.txHash}</code>
+                                                <div className="text-gray-400 group-hover:text-gray-600">
+                                                    {copiedField === 'tx' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3">
+                                                <a href={`https://basescan.org/tx/${deployResult.txHash}`} target="_blank" rel="noopener noreferrer"
+                                                    className="block bg-orange-500/5 hover:bg-orange-500/10 text-orange-600 p-3 rounded-xl font-bold text-xs text-center transition-all border border-orange-500/10 hover:border-orange-500/30 active:scale-[0.98]">
+                                                    View on BaseScan <ExternalLink className="w-3 h-3 inline ml-1 opacity-50" />
+                                                </a>
                                             </div>
                                         </div>
-                                        <div className="mt-3">
-                                            <a href={`https://basescan.org/tx/${deployResult.txHash}`} target="_blank" rel="noopener noreferrer"
-                                                className="block bg-orange-500/5 hover:bg-orange-500/10 text-orange-600 p-3 rounded-xl font-bold text-xs text-center transition-all border border-orange-500/10 hover:border-orange-500/30 active:scale-[0.98]">
-                                                View on BaseScan <ExternalLink className="w-3 h-3 inline ml-1 opacity-50" />
-                                            </a>
+                                    )}
+
+                                    {deployResult.message && (
+                                        <div className="w-full max-w-sm bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-xl p-3 mb-6 text-left">
+                                            <p className="font-mono text-[10px] text-gray-500 leading-relaxed">{deployResult.message}</p>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
 
-                                {deployResult.message && (
-                                    <div className="w-full max-w-sm bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-xl p-3 mb-6 text-left">
-                                        <p className="font-mono text-[10px] text-gray-500 leading-relaxed">{deployResult.message}</p>
+                                    <div className="w-full space-y-3 max-w-sm">
+                                        <CLIButton variant="primary" onClick={deployAnother} fullWidth
+                                            className="py-4 !bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20">
+                                            <Rocket className="w-4 h-4 mr-2" /> Launch Another
+                                        </CLIButton>
+                                        <button onClick={() => router.push('/')}
+                                            className="w-full py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                            <ArrowLeft className="w-4 h-4" /> Home
+                                        </button>
                                     </div>
-                                )}
-
-                                <div className="w-full space-y-3 max-w-sm">
-                                    <CLIButton variant="primary" onClick={deployAnother} fullWidth
-                                        className="py-4 !bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20">
-                                        <Rocket className="w-4 h-4 mr-2" /> Launch Another
-                                    </CLIButton>
-                                    <button onClick={() => router.push('/')}
-                                        className="w-full py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                                        <ArrowLeft className="w-4 h-4" /> Home
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
+                                </motion.div>
+                            )
+                        }
 
                         {/* ─── ERROR ──────────────────────────────────────────────────────── */}
-                        {step === 'error' && (
-                            <motion.div key="error" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3 }} className="py-10 flex flex-col items-center w-full text-center">
+                        {
+                            step === 'error' && (
+                                <motion.div key="error" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3 }} className="py-10 flex flex-col items-center w-full text-center">
 
-                                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border-4 border-white ring-4 ring-red-50">
-                                    <AlertTriangle className="w-10 h-10 text-red-500" />
-                                </div>
+                                    <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border-4 border-white ring-4 ring-red-50">
+                                        <AlertTriangle className="w-10 h-10 text-red-500" />
+                                    </div>
 
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Launch Failed</h2>
-                                <div className="bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 p-4 rounded-xl text-xs font-mono mb-8 max-w-sm w-full mx-auto text-left overflow-x-auto border border-red-100 dark:border-red-900/30">
-                                    {deployLogs.find(l => l.startsWith('✗')) || 'Unknown error occurred'}
-                                </div>
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Launch Failed</h2>
+                                    <div className="bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 p-4 rounded-xl text-xs font-mono mb-8 max-w-sm w-full mx-auto text-left overflow-x-auto border border-red-100 dark:border-red-900/30">
+                                        {deployLogs.find(l => l.startsWith('✗')) || 'Unknown error occurred'}
+                                    </div>
 
-                                <div className="w-full space-y-3 max-w-sm">
-                                    <button onClick={() => setStep('review')}
-                                        className="w-full py-3.5 bg-orange-500 text-white rounded-xl font-medium shadow-xl active:scale-[0.98] transition-all hover:bg-orange-600">
-                                        Try Again
-                                    </button>
-                                    <button onClick={resetForm}
-                                        className="w-full py-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium">
-                                        Reset Form
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </main>
+                                    <div className="w-full space-y-3 max-w-sm">
+                                        <button onClick={() => setStep('review')}
+                                            className="w-full py-3.5 bg-orange-500 text-white rounded-xl font-medium shadow-xl active:scale-[0.98] transition-all hover:bg-orange-600">
+                                            Try Again
+                                        </button>
+                                        <button onClick={resetForm}
+                                            className="w-full py-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium">
+                                            Reset Form
+                                        </button>
+                                    </div>
+
+                                    {/* Stuck Funds Recovery - Show immediately on error */}
+                                    <div className="w-full max-w-sm">
+                                        <RecoveryManager address={address || ''} onRecovered={refreshBalance} />
+                                    </div>
+                                </motion.div>
+                            )
+                        }
+                    </AnimatePresence >
+                </div >
+            </main >
 
             {/* Footer */}
-            <footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
+            < footer className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-gray-100/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md" >
                 <div className="flex items-center justify-between max-w-lg mx-auto">
                     <p className="font-mono text-[10px] text-gray-400 dark:text-gray-600">Bankr AI Agent Engine</p>
                     <div className="flex items-center gap-2">
@@ -959,7 +971,7 @@ export default function BankrLaunchPage() {
                             className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
                     </div>
                 </div>
-            </footer>
-        </div>
+            </footer >
+        </div >
     );
 }

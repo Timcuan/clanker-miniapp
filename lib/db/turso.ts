@@ -43,6 +43,16 @@ export interface DbDeployment {
   created_at: string;
 }
 
+export interface DbBurner {
+  id: number;
+  user_id: number;
+  address: string;
+  encrypted_pk: string;
+  status: 'active' | 'swept' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================
 // Database Client
 // ============================================
@@ -107,6 +117,18 @@ function rowToDeployment(row: Row): DbDeployment {
     error_message: row.error_message as string | null,
     gas_used: row.gas_used as string | null,
     created_at: row.created_at as string,
+  };
+}
+
+function rowToBurner(row: Row): DbBurner {
+  return {
+    id: row.id as number,
+    user_id: row.user_id as number,
+    address: row.address as string,
+    encrypted_pk: row.encrypted_pk as string,
+    status: row.status as 'active' | 'swept' | 'failed',
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
   };
 }
 
@@ -182,6 +204,19 @@ export async function initDatabase() {
     `CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`,
     `CREATE INDEX IF NOT EXISTS idx_deployments_user_id ON deployments(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_deployments_status ON deployments(status)`,
+    // Burners table for fund recovery
+    `CREATE TABLE IF NOT EXISTS burners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      address TEXT UNIQUE NOT NULL,
+      encrypted_pk TEXT NOT NULL,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'swept', 'failed')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_burners_user_id ON burners(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_burners_address ON burners(address)`,
   ]);
 }
 
@@ -647,6 +682,90 @@ export async function getRecentDeployments(limit = 20): Promise<(DbDeployment & 
     }));
   } catch (error) {
     console.error('[DB] getRecentDeployments error:', error);
+    throw error;
+  }
+}
+
+// ============================================
+// Burner Operations
+// ============================================
+export async function registerBurner(
+  userId: number,
+  address: string,
+  encryptedPk: string
+): Promise<void> {
+  try {
+    const db = getClient();
+    await db.execute({
+      sql: 'INSERT INTO burners (user_id, address, encrypted_pk, status) VALUES (?, ?, ?, "active")',
+      args: [userId, address, encryptedPk],
+    });
+  } catch (error) {
+    console.error('[DB] registerBurner error:', error);
+    throw error;
+  }
+}
+
+export async function markBurnerStatus(
+  address: string,
+  status: 'swept' | 'failed'
+): Promise<void> {
+  try {
+    const db = getClient();
+    await db.execute({
+      sql: 'UPDATE burners SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE address = ?',
+      args: [status, address],
+    });
+  } catch (error) {
+    console.error('[DB] markBurnerStatus error:', error);
+    throw error;
+  }
+}
+
+export async function getUnsweptBurners(userId: number): Promise<DbBurner[]> {
+  try {
+    const db = getClient();
+    const result = await db.execute({
+      sql: 'SELECT * FROM burners WHERE user_id = ? AND status = "active" ORDER BY created_at DESC',
+      args: [userId],
+    });
+    return result.rows.map(rowToBurner);
+  } catch (error) {
+    console.error('[DB] getUnsweptBurners error:', error);
+    throw error;
+  }
+}
+
+export async function getBurnerByAddress(address: string): Promise<DbBurner | null> {
+  try {
+    const db = getClient();
+    const result = await db.execute({
+      sql: 'SELECT * FROM burners WHERE address = ?',
+      args: [address],
+    });
+    return result.rows[0] ? rowToBurner(result.rows[0]) : null;
+  } catch (error) {
+    console.error('[DB] getBurnerByAddress error:', error);
+    throw error;
+  }
+}
+
+export async function getAllUnsweptBurnersWithUser(): Promise<(DbBurner & { userAddress: string })[]> {
+  try {
+    const db = getClient();
+    const result = await db.execute({
+      sql: `SELECT b.*, u.address as userAddress 
+            FROM burners b 
+            JOIN users u ON b.user_id = u.id 
+            WHERE b.status = 'active'`,
+      args: [],
+    });
+    return result.rows.map((row: any) => ({
+      ...rowToBurner(row),
+      userAddress: row.userAddress as string,
+    }));
+  } catch (error) {
+    console.error('[DB] getAllUnsweptBurnersWithUser error:', error);
     throw error;
   }
 }

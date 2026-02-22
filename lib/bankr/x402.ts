@@ -300,7 +300,7 @@ export async function sweepFunds(
     burnerPrivateKey: string,
     mainWalletAddress: string,
     customRpcUrl?: string
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; ethHash?: string; usdcHash?: string; error?: string }> {
     if (!/^0x[a-fA-F0-9]{64}$/.test(burnerPrivateKey)) {
         throw new Error('Invalid burner private key format');
     }
@@ -326,16 +326,19 @@ export async function sweepFunds(
             args: [burnerAccount.address],
         })) as bigint;
 
+        let usdcHash: `0x${string}` | undefined;
+        let ethHash: `0x${string}` | undefined;
+
         if (usdcBalance > BigInt(0)) {
             console.log(`[Sweep] Sweeping ${formatUnits(usdcBalance, 6)} USDC...`);
-            const usdcTx = await walletClient.writeContract({
+            usdcHash = await walletClient.writeContract({
                 address: USDC_ADDRESS_BASE as `0x${string}`,
                 abi: ERC20_ABI,
                 functionName: 'transfer',
                 args: [mainWalletAddress as `0x${string}`, usdcBalance],
             });
-            await publicClient.waitForTransactionReceipt({ hash: usdcTx });
-            console.log(`[Sweep] USDC swept: ${usdcTx}`);
+            await publicClient.waitForTransactionReceipt({ hash: usdcHash });
+            console.log(`[Sweep] USDC swept: ${usdcHash}`);
         }
 
         // ── 2. Sweep ETH (re-read balance after USDC sweep to get accurate remaining) ──
@@ -350,17 +353,17 @@ export async function sweepFunds(
                 const block = await publicClient.getBlock({ blockTag: 'latest' });
                 if (block.baseFeePerGas) baseFeePerGas = block.baseFeePerGas;
 
-                // estimateMaxPriorityFeePerGas may not be on all clients — use try/catch
                 try {
                     priorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
                 } catch {
-                    priorityFeePerGas = baseFeePerGas; // fallback: match base fee
+                    priorityFeePerGas = baseFeePerGas;
                 }
             } catch (gasErr) {
                 console.warn('[Sweep] Gas estimation failed, using fallback values:', gasErr);
             }
 
-            const maxFeePerGas = (baseFeePerGas * BigInt(2)) + priorityFeePerGas;
+            // More aggressive gas to ensure cleanup (3x multiplier on base fee)
+            const maxFeePerGas = (baseFeePerGas * BigInt(3)) + priorityFeePerGas;
             const gasLimit = BigInt(21_000);
             const gasCost = gasLimit * maxFeePerGas;
 
@@ -368,7 +371,7 @@ export async function sweepFunds(
                 const sweepAmount = ethBalance - gasCost;
                 console.log(`[Sweep] Sweeping ${formatUnits(sweepAmount, 18)} ETH...`);
 
-                const ethTx = await walletClient.sendTransaction({
+                ethHash = await walletClient.sendTransaction({
                     to: mainWalletAddress as `0x${string}`,
                     value: sweepAmount,
                     gas: gasLimit,
@@ -376,18 +379,18 @@ export async function sweepFunds(
                     maxPriorityFeePerGas: priorityFeePerGas,
                 });
 
-                await publicClient.waitForTransactionReceipt({ hash: ethTx });
-                console.log(`[Sweep] ETH swept: ${ethTx}`);
+                await publicClient.waitForTransactionReceipt({ hash: ethHash });
+                console.log(`[Sweep] ETH swept: ${ethHash}`);
             } else {
                 console.log(`[Sweep] ETH balance (${formatUnits(ethBalance, 18)}) below gas cost (${formatUnits(gasCost, 18)}). Dust left.`);
             }
         }
 
         console.log(`[Sweep] Complete`);
-        return { success: true };
+        return { success: true, ethHash, usdcHash };
 
     } catch (e) {
         console.error('[Sweep] Failed:', e);
-        return { success: false }; // non-fatal
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
 }
