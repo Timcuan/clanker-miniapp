@@ -5,7 +5,7 @@ import { deployToken, simulateDeployment, DeployTokenConfig, DeployResult } from
 import { TokenInputData, BuildConfigOptions } from './config';
 import { DEFAULT_CONFIG, MevModuleType } from './constants';
 import { privateKeyToAccount } from 'viem/accounts';
-import { getPublicClient, getEthBalance } from '../blockchain/client';
+import { getEthBalance } from '../blockchain/client';
 
 // Types
 export interface WalletState {

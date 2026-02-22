@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Rocket, Check,
+  ArrowLeft, Rocket, Check, ArrowRight,
   Shield, Zap, Copy, Clipboard, Image, Coins, User, Lock, Gift, Star, Link,
-  Globe, RefreshCw, ChevronDown, ChevronUp, ChevronRight, Share2, Settings, AlertTriangle
+  Globe, RefreshCw, ChevronDown, ChevronUp, ChevronRight, Share2, Settings, AlertTriangle,
+  ExternalLink, Activity, Plus
 } from 'lucide-react';
 import ClankerLogo from '@/components/ui/ClankerLogo';
 import { useTelegramContext } from '@/components/layout/TelegramProvider';
@@ -1250,8 +1251,8 @@ export default function DeployPage() {
                           {/* Recipients */}
                           <CollapsibleSection title="Advanced Recipients" icon={User}>
                             <div className="space-y-4">
-                              <MobileInput label="admin" value={config.tokenAdmin} onChange={(v) => setConfig(p => ({ ...p, tokenAdmin: v }))} placeholder={address || '0x...'} error={errors.tokenAdmin} hint="Token Admin" />
-                              <MobileInput label="reward" value={config.rewardRecipient} onChange={(v) => setConfig(p => ({ ...p, rewardRecipient: v }))} placeholder={address || '0x...'} error={errors.rewardRecipient} hint="Reward Recipient" />
+                              <MobileInput label="admin" value={config.tokenAdmin} onChange={(v) => setConfig(p => ({ ...p, tokenAdmin: v }))} placeholder={address || '0x...'} error={errors.tokenAdmin} hint="Interface Address" />
+                              <MobileInput label="reward" value={config.rewardRecipient} onChange={(v) => setConfig(p => ({ ...p, rewardRecipient: v }))} placeholder={address || '0x...'} error={errors.rewardRecipient} hint="Reward Recipients" />
                             </div>
                           </CollapsibleSection>
 
@@ -1666,31 +1667,42 @@ export default function DeployPage() {
                 </div>
 
                 {/* Primary Actions */}
-                <div className="w-full max-w-sm space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <a
-                      href={`https://clanker.world/clanker/${deployResult.tokenAddress}`}
-                      target="_blank"
-                      className="py-4 rounded-2xl bg-[#0052FF] text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 active:scale-95 transition-all"
-                    >
-                      <Globe className="w-4 h-4" />
-                      Clanker
-                    </a>
-                    <a
-                      href={`https://dexscreener.com/base/${deployResult.tokenAddress}`}
-                      target="_blank"
-                      className="py-4 rounded-2xl bg-gray-900 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Trade
-                    </a>
-                  </div>
+                <div className="w-full max-w-sm space-y-3">
+                  <a
+                    href={`https://basescan.org/token/${deployResult.tokenAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-[#0052FF] font-black tracking-widest text-xs uppercase transition-colors shadow-sm"
+                  >
+                    <span className="flex items-center gap-3">
+                      <div className="p-1.5 rounded-lg bg-blue-500/20">
+                        <ExternalLink className="w-4 h-4" />
+                      </div>
+                      View on BaseScan
+                    </span>
+                    <ArrowRight className="w-4 h-4 opacity-50" />
+                  </a>
+
+                  <a
+                    href={`https://app.uniswap.org/explore/tokens/base/${deployResult.tokenAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-600 dark:text-pink-400 font-black tracking-widest text-xs uppercase transition-colors shadow-sm"
+                  >
+                    <span className="flex items-center gap-3">
+                      <div className="p-1.5 rounded-lg bg-pink-500/20">
+                        <Activity className="w-4 h-4" />
+                      </div>
+                      Trade on Uniswap
+                    </span>
+                    <ArrowRight className="w-4 h-4 opacity-50" />
+                  </a>
 
                   <button
                     onClick={deployAnother}
-                    className="w-full py-4 rounded-2xl border-2 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-900 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-4 rounded-2xl border-2 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm tracking-wide hover:bg-gray-50 dark:hover:bg-gray-900 transition-all flex items-center justify-center gap-2 mt-4"
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
                     Deploy Another Protocol
                   </button>
 
