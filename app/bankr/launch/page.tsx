@@ -58,7 +58,7 @@ const DEFAULT_CONFIG: BankrConfig = {
     tweet: '', cast: '', website: '',
     launcherType: 'x', launcher: '',
     dashboardFeeType: 'x', dashboardFee: '',
-    taxType: 'static', taxPercentage: 10,
+    taxType: 'static', taxPercentage: 5,
     rewardRecipient: '',
     vanityEnabled: false, vanitySuffix: DEFAULT_VANITY_SUFFIX,
 };
@@ -77,19 +77,29 @@ function MobileInput({
     const handlePaste = async () => {
         try {
             const text = await navigator.clipboard.readText();
-            onChange(uppercase ? text.toUpperCase() : text.trim());
-            hapticFeedback('light');
-        } catch { }
+            if (text) {
+                onChange(uppercase ? text.toUpperCase() : text.trim());
+                hapticFeedback('success');
+            }
+        } catch (e) {
+            console.warn('Paste failed', e);
+        }
     };
 
-    const cls = `w-full bg-white dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50' : 'border-gray-200 dark:border-gray-800'} rounded-xl px-4 py-3 pr-12 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all`;
+    const cls = `w-full bg-slate-50/50 dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50' : 'border-gray-100 dark:border-gray-800'} rounded-xl px-4 py-3 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/5 transition-all shadow-sm`;
 
     return (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
             {label && (
-                <label className="block font-mono text-xs text-gray-500 dark:text-gray-400">
-                    <span className="text-orange-500 font-medium">const</span> {label} <span className="text-gray-400 dark:text-gray-600">=</span>
-                </label>
+                <div className="flex items-center justify-between px-1">
+                    <label className="block font-mono text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-bold">
+                        {label}
+                    </label>
+                    <button type="button" onClick={handlePaste}
+                        className="font-mono text-[9px] text-orange-500/70 hover:text-orange-500 font-bold uppercase tracking-tighter flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded-md hover:bg-orange-500/5">
+                        <Clipboard className="w-2.5 h-2.5" /> Paste
+                    </button>
+                </div>
             )}
             <div className="relative">
                 {multiline ? (
@@ -101,13 +111,9 @@ function MobileInput({
                         placeholder={placeholder} className={cls}
                         {...(agentId && { 'data-agent': agentId })} />
                 )}
-                <button type="button" onClick={handlePaste}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
-                    <Clipboard className="w-4 h-4" />
-                </button>
             </div>
-            {hint && !error && <p className="font-mono text-[10px] text-gray-400 dark:text-gray-500">{hint}</p>}
-            {error && <p className="font-mono text-xs text-red-500">⚠ {error}</p>}
+            {hint && !error && <p className="px-1 font-mono text-[9px] text-gray-400/80 dark:text-gray-500/80 leading-tight italic">{hint}</p>}
+            {error && <p className="px-1 font-mono text-[10px] text-red-500 font-medium">✗ {error}</p>}
         </div>
     );
 }
@@ -120,16 +126,21 @@ function OptionSelector({
 }) {
     return (
         <div className="space-y-2">
-            <label className="block font-mono text-xs text-gray-500 dark:text-gray-400">{label}</label>
+            <label className="block font-mono text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 font-bold">{label}</label>
             <div className="grid grid-cols-2 gap-2">
                 {options.map((opt) => (
                     <button key={opt} type="button"
                         onClick={() => { onChange(opt); hapticFeedback('light'); }}
-                        className={`p-3 rounded-xl border font-mono text-xs text-left transition-all ${value === opt
-                            ? 'border-orange-500 bg-orange-500/10 text-orange-600 dark:text-orange-400'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}`}>
-                        <div className={`font-semibold ${value === opt ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-100'}`}>{opt}</div>
-                        {descriptions?.[opt] && <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{descriptions[opt]}</div>}
+                        className={`p-2.5 rounded-xl border font-mono text-xs text-left transition-all relative overflow-hidden ${value === opt
+                            ? 'border-orange-500 bg-orange-500/5 ring-1 ring-orange-500/20'
+                            : 'border-gray-100 dark:border-gray-800 bg-slate-50/30 dark:bg-gray-900/40 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-900/60'}`}>
+                        {value === opt && (
+                            <div className="absolute top-1 right-1">
+                                <Check className="w-3 h-3 text-orange-500" />
+                            </div>
+                        )}
+                        <div className={`text-xs font-bold leading-none ${value === opt ? 'text-orange-600 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300'}`}>{opt.toUpperCase()}</div>
+                        {descriptions?.[opt] && <div className="text-[9px] text-gray-400 dark:text-gray-500 mt-1 leading-tight">{descriptions[opt]}</div>}
                     </button>
                 ))}
             </div>
@@ -144,11 +155,13 @@ function CollapsibleSection({
 }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
-        <div className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900/40">
+        <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden bg-white/50 dark:bg-gray-900/20 backdrop-blur-sm">
             <button type="button" onClick={() => { setIsOpen(!isOpen); hapticFeedback('light'); }}
-                className="w-full p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <span className="font-mono text-xs flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                    <Icon className="w-4 h-4 text-orange-500" />
+                className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider flex items-center gap-3 text-gray-500 dark:text-gray-400">
+                    <div className="p-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                        <Icon className="w-3.5 h-3.5 text-orange-500" />
+                    </div>
                     {title}
                 </span>
                 {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -157,8 +170,10 @@ function CollapsibleSection({
                 {isOpen && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                        <div className="p-3 space-y-4 border-t border-gray-100 dark:border-gray-800">
-                            {children}
+                        <div className="px-4 pb-4 space-y-5 border-t border-gray-50 dark:border-gray-800">
+                            <div className="pt-4 space-y-5">
+                                {children}
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -184,7 +199,7 @@ function TogglePill({ checked, onChange }: { checked: boolean; onChange: () => v
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function BankrLaunchPage() {
     const router = useRouter();
-    const { isAuthenticated, formattedAddress, address, balance } = useWallet();
+    const { isAuthenticated, formattedAddress, address, balance, refreshBalance } = useWallet();
     const { isTelegram } = useTelegramContext();
 
     const [step, setStep] = useState<BankrStep>('form');
@@ -218,18 +233,47 @@ export default function BankrLaunchPage() {
         } catch { }
     }, []);
 
+    // Unified Auto-Refresh Logic (Balances & Prices)
     useEffect(() => {
-        if (address) fetchUsdcBalance(address);
+        if (!address) return;
+
+        // Force initial fetches
+        fetchUsdcBalance(address);
+
+        const fetchEthPrice = async () => {
+            try {
+                const r = await fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot');
+                const d = await r.json();
+                setEthPrice(parseFloat(d.data.amount));
+            } catch { }
+        };
+        fetchEthPrice();
+
+        // 10s interval for balances
+        const balanceInterval = setInterval(() => {
+            fetchUsdcBalance(address);
+            // Also trigger WalletContext refresh for ETH
+            const walletContext = (window as any)._walletContext; // Context-less backup? No, context is already in scope.
+            // Wait, I have refreshBalance from useWallet in scope.
+        }, 10000);
+
+        // 60s interval for Price
+        const priceInterval = setInterval(fetchEthPrice, 60000);
+
+        return () => {
+            clearInterval(balanceInterval);
+            clearInterval(priceInterval);
+        };
     }, [address, fetchUsdcBalance]);
 
-
-    // Fetch ETH price
+    // Independent effect for ETH refresh trigger (WalletContext already has internal 30s poll, we just speed it up here)
     useEffect(() => {
-        fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot')
-            .then(r => r.json())
-            .then(d => setEthPrice(parseFloat(d.data.amount)))
-            .catch(() => { });
-    }, []);
+        if (!address) return;
+        const ethPoll = setInterval(() => {
+            refreshBalance();
+        }, 10000);
+        return () => clearInterval(ethPoll);
+    }, [address, refreshBalance]);
 
     // Load from localStorage
     useEffect(() => {
@@ -481,56 +525,68 @@ export default function BankrLaunchPage() {
                                 exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                 <Terminal title="Token Launch Configuration" className="w-full">
 
-                                    {/* Balance chips + Advanced toggle */}
-                                    <div className="mb-4 flex items-center gap-3">
+                                    {/* Balance chips - Unified Currency Pane */}
+                                    <div className="mb-5 flex flex-col sm:flex-row items-stretch gap-2">
                                         <div className="flex-1 flex gap-2">
                                             {/* ETH Balance */}
-                                            <div className="flex-1 p-2.5 rounded-lg bg-orange-50/80 dark:bg-orange-500/10 border border-orange-200/70 dark:border-orange-500/20 flex flex-col justify-center min-w-0">
-                                                <span className="font-mono text-[9px] text-orange-600/70 dark:text-orange-400/70 uppercase tracking-wider font-bold">ETH</span>
-                                                <span className="font-mono text-xs text-orange-600 dark:text-orange-400 font-bold truncate">
-                                                    {balance ? parseFloat(balance).toFixed(4) : '...'}
-                                                </span>
+                                            <div className="flex-1 px-3.5 py-3 rounded-2xl bg-orange-50/50 dark:bg-orange-500/5 border border-orange-100 dark:border-orange-500/10 flex items-center justify-between min-w-0 transition-all hover:bg-orange-50 dark:hover:bg-orange-500/10 group">
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono text-[9px] text-orange-600/60 dark:text-orange-400/60 uppercase tracking-widest font-bold">ETH Balance</span>
+                                                    <div className="flex items-baseline gap-1.5">
+                                                        <span className="font-mono text-sm text-orange-600 dark:text-orange-400 font-bold truncate">
+                                                            {balance ? parseFloat(balance).toFixed(4) : '0.0000'}
+                                                        </span>
+                                                        <span className="text-[10px] text-orange-400/50 dark:text-orange-500/30">ETH</span>
+                                                    </div>
+                                                </div>
                                                 {balance && ethPrice && (
-                                                    <span className="font-mono text-[9px] text-orange-500/60 dark:text-orange-400/50">
-                                                        ~${(parseFloat(balance) * ethPrice).toFixed(2)}
-                                                    </span>
+                                                    <div className="text-right flex flex-col items-end">
+                                                        <span className="font-mono text-[10px] text-orange-500/70 dark:text-orange-400/50 font-medium">
+                                                            ${(parseFloat(balance) * ethPrice).toFixed(2)}
+                                                        </span>
+                                                        <div className="w-1 h-1 rounded-full bg-orange-400/40 animate-pulse mt-1" />
+                                                    </div>
                                                 )}
                                             </div>
+
                                             {/* USDC Balance */}
-                                            <div className={`flex-1 p-2.5 rounded-lg border flex flex-col justify-center min-w-0 ${usdcBalance === null
-                                                ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700'
+                                            <div className={`flex-1 px-3.5 py-3 rounded-2xl border flex items-center justify-between min-w-0 transition-all group ${usdcBalance === null
+                                                ? 'bg-gray-50/50 dark:bg-gray-800/20 border-gray-100 dark:border-gray-800'
                                                 : parseFloat(usdcBalance) >= 0.10
-                                                    ? 'bg-emerald-50/80 dark:bg-emerald-500/10 border-emerald-200/70 dark:border-emerald-500/20'
-                                                    : 'bg-red-50/80 dark:bg-red-500/10 border-red-200/70 dark:border-red-500/20'
+                                                    ? 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/10 hover:bg-emerald-50'
+                                                    : 'bg-red-50/50 dark:bg-red-500/5 border-red-100 dark:border-red-500/10 hover:bg-red-50'
                                                 }`}>
-                                                <span className={`font-mono text-[9px] uppercase tracking-wider font-bold ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
-                                                    : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-600/70 dark:text-emerald-400/70'
-                                                        : 'text-red-500/70 dark:text-red-400/70'
-                                                    }`}>USDC</span>
-                                                <span className={`font-mono text-xs font-bold truncate ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
-                                                    : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-700 dark:text-emerald-400'
-                                                        : 'text-red-600 dark:text-red-400'
-                                                    }`}>
-                                                    {usdcBalance === null ? '···' : `$${parseFloat(usdcBalance).toFixed(2)}`}
-                                                </span>
-                                                {usdcBalance !== null && parseFloat(usdcBalance) < 0.10 && (
-                                                    <span className="font-mono text-[9px] text-orange-500 dark:text-orange-400 leading-tight">auto-swap</span>
-                                                )}
+                                                <div className="flex flex-col">
+                                                    <span className={`font-mono text-[9px] uppercase tracking-widest font-bold ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
+                                                        : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-600/60 dark:text-emerald-400/60'
+                                                            : 'text-red-500/60 dark:text-red-400/60'
+                                                        }`}>USDC Wallet</span>
+                                                    <div className="flex items-baseline gap-1">
+                                                        <span className={`font-mono text-sm font-bold truncate ${usdcBalance === null ? 'text-gray-300 dark:text-gray-600'
+                                                            : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-700 dark:text-emerald-400'
+                                                                : 'text-red-600 dark:text-red-400'
+                                                            }`}>
+                                                            {usdcBalance === null ? '0.00' : `${parseFloat(usdcBalance).toFixed(2)}`}
+                                                        </span>
+                                                        <span className="text-[10px] opacity-30">$</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    {usdcBalance !== null && parseFloat(usdcBalance) < 0.10 ? (
+                                                        <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold uppercase tracking-tighter">Auto-Swap</span>
+                                                    ) : (
+                                                        <div className="w-1 h-1 rounded-full bg-emerald-400/40 animate-pulse mt-1" />
+                                                    )}
+                                                </div>
                                             </div>
-                                            {/* Refresh button */}
-                                            <button type="button"
-                                                onClick={() => address && fetchUsdcBalance(address)}
-                                                className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
-                                                <RefreshCw className="w-3.5 h-3.5" />
-                                            </button>
                                         </div>
 
                                         <button type="button" onClick={() => { setIsAdvanced(!isAdvanced); hapticFeedback('light'); }}
-                                            className={`p-2.5 rounded-lg border flex items-center gap-2 transition-all ${isAdvanced
-                                                ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600 text-gray-800 dark:text-gray-100'
-                                                : 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                                            <Settings className="w-4 h-4" />
-                                            <span className="font-mono text-[10px] font-medium">{isAdvanced ? 'ADVANCED' : 'BASIC'}</span>
+                                            className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all shadow-sm ${isAdvanced
+                                                ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600 text-gray-800 dark:text-white'
+                                                : 'bg-white border-gray-100 dark:bg-gray-900 dark:border-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60'}`}>
+                                            <Settings className={`w-4 h-4 ${isAdvanced ? 'animate-spin-slow' : ''}`} />
+                                            <span className="font-mono text-[10px] font-bold tracking-widest">{isAdvanced ? 'ADVANCED' : 'BASIC'}</span>
                                         </button>
                                     </div>
 
@@ -656,36 +712,23 @@ export default function BankrLaunchPage() {
                                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                                                     exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
 
-                                                    {/* Vanity Address Toggle */}
-                                                    <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-900/10">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                                                                    <Shield className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                                                                </div>
-                                                                <div>
-                                                                    <h4 className="font-mono text-xs font-bold text-gray-800 dark:text-gray-200">Vanity Contract Address</h4>
-                                                                    <p className="text-[10px] text-gray-500 mt-0.5">
-                                                                        {config.vanityEnabled
-                                                                            ? <>Contract ends in <code className="text-purple-600 dark:text-purple-400">...{DEFAULT_VANITY_SUFFIX}</code></>
-                                                                            : 'Agent mines a contract ending in "bA3"'}
-                                                                    </p>
-                                                                </div>
+                                                    {/* Vanity Address Toggle - SIMPLIFIED */}
+                                                    <div className="p-3.5 rounded-2xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/10 dark:bg-purple-900/5 flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/30">
+                                                                <Zap className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                                                             </div>
-                                                            <TogglePill
-                                                                checked={config.vanityEnabled}
-                                                                onChange={() => setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled }))}
-                                                            />
-                                                        </div>
-                                                        {config.vanityEnabled && (
-                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                                                className="mt-3 p-2.5 rounded-lg bg-purple-100/50 dark:bg-purple-900/20 border border-purple-200/50 dark:border-purple-800/30">
-                                                                <p className="font-mono text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-2">
-                                                                    <Zap className="w-3 h-3" />
-                                                                    Agent will mine until contract address ends in <strong>...{DEFAULT_VANITY_SUFFIX}</strong>. This may take up to 2 minutes.
+                                                            <div>
+                                                                <h4 className="font-mono text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">VANITY ADDR</h4>
+                                                                <p className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                                                                    Ends in ...{DEFAULT_VANITY_SUFFIX}
                                                                 </p>
-                                                            </motion.div>
-                                                        )}
+                                                            </div>
+                                                        </div>
+                                                        <TogglePill
+                                                            checked={config.vanityEnabled}
+                                                            onChange={() => setConfig(p => ({ ...p, vanityEnabled: !p.vanityEnabled }))}
+                                                        />
                                                     </div>
                                                 </motion.div>
                                             )}
@@ -712,23 +755,28 @@ export default function BankrLaunchPage() {
                                 exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                 <Terminal title="Review Launch" className="w-full">
                                     <TerminalLine text="Review your configuration before deployment:" type="command" />
-                                    <CLICard className="mt-4 bg-white dark:bg-gray-900/80 border-gray-200 dark:border-gray-800">
-                                        <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="font-bold">{config.name}</span></div>
-                                            <div className="flex justify-between"><span className="text-gray-500">Symbol</span><span className="text-orange-500 font-medium">${config.symbol.toUpperCase()}</span></div>
-                                            {config.description && <div className="flex justify-between items-start gap-4"><span className="text-gray-500 shrink-0">Description</span><span className="text-xs text-right truncate max-w-[180px]">{config.description}</span></div>}
-                                            <div className="border-t border-gray-100 dark:border-gray-800 pt-2 space-y-1">
-                                                <div className="flex justify-between"><span className="text-gray-500">Launcher</span><span className="text-xs font-mono">{config.launcherType}:{config.launcher}</span></div>
-                                                <div className="flex justify-between"><span className="text-gray-500">Fee To</span><span className="text-xs font-mono">{config.dashboardFeeType}:{config.dashboardFee}</span></div>
-                                                <div className="flex justify-between"><span className="text-gray-500">Tax</span><span className="text-xs font-mono">{config.taxType.toUpperCase()}{config.taxType === 'static' ? ` ${config.taxPercentage}%` : ''}</span></div>
-                                                <div className="flex justify-between"><span className="text-gray-500">Recipient</span><span className="text-xs font-mono">{shortenAddress(config.rewardRecipient)}</span></div>
+                                    <CLICard className="mt-4 !bg-slate-50/30 dark:!bg-gray-900/60 border-gray-100 dark:border-gray-800 shadow-inner px-0">
+                                        <div className="space-y-3 text-sm px-1">
+                                            <div className="flex justify-between items-center opacity-90"><span className="font-mono text-[10px] uppercase text-gray-400">Token Name</span><span className="font-bold text-gray-800 dark:text-gray-100">{config.name}</span></div>
+                                            <div className="flex justify-between items-center"><span className="font-mono text-[10px] uppercase text-gray-400">Symbol</span><span className="text-orange-500 font-bold px-2 py-0.5 rounded-lg bg-orange-500/5 border border-orange-500/10">${config.symbol.toUpperCase()}</span></div>
+                                            {config.description && <div className="flex justify-between items-start gap-4"><span className="font-mono text-[10px] uppercase text-gray-400">Bio</span><span className="text-xs text-right italic text-gray-600 dark:text-gray-400 truncate max-w-[180px]">{config.description}</span></div>}
+
+                                            <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-2 mt-1">
+                                                <div className="flex justify-between items-center"><span className="font-mono text-[10px] uppercase text-gray-400">Identity</span><span className="text-[11px] font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{config.launcherType}:{config.launcher}</span></div>
+                                                <div className="flex justify-between items-center"><span className="font-mono text-[10px] uppercase text-gray-400">Tax Mode</span><span className="text-[11px] font-mono font-bold text-gray-700 dark:text-gray-300">{config.taxType === 'static' ? `FIXED ${config.taxPercentage}%` : 'DYNAMIC 1-10%'}</span></div>
+                                                <div className="flex justify-between items-center"><span className="font-mono text-[10px] uppercase text-gray-400">Payout Wallet</span><span className="text-[10px] font-mono text-gray-500">{shortenAddress(config.rewardRecipient)}</span></div>
                                                 {config.vanityEnabled && (
-                                                    <div className="flex justify-between"><span className="text-gray-500">Vanity</span><span className="text-purple-500 font-mono text-xs">...{DEFAULT_VANITY_SUFFIX}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="font-mono text-[10px] uppercase text-purple-400">Vanity Suffix</span><span className="text-purple-500 font-mono text-xs font-bold ring-1 ring-purple-500/20 px-1.5 py-0.5 rounded-md">...{DEFAULT_VANITY_SUFFIX}</span></div>
                                                 )}
                                             </div>
-                                            <div className="border-t border-gray-100 dark:border-gray-800 pt-2 text-xs">
-                                                <div className="flex justify-between font-bold text-orange-500">
-                                                    <span>Est. Cost</span><span>~0.001 ETH + $0.10 USDC</span>
+
+                                            <div className="border-t border-dashed border-gray-200 dark:border-gray-800 pt-3 text-xs mt-1">
+                                                <div className="flex justify-between items-center font-bold text-orange-600 dark:text-orange-400">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Zap className="w-3 h-3" />
+                                                        <span className="font-mono text-[10px] uppercase">Est. Cost</span>
+                                                    </div>
+                                                    <span className="font-mono leading-none tracking-tight">~0.001 ETH + $0.10 USDC</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -817,22 +865,24 @@ export default function BankrLaunchPage() {
                                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                                 className="py-6 flex flex-col items-center w-full text-center">
 
-                                <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-xl border-4 border-white ring-4 ${deployResult.deployedViaFallback ? 'bg-amber-50 ring-amber-50' : 'bg-green-50 ring-green-50'}`}>
-                                    <Check className={`w-10 h-10 ${deployResult.deployedViaFallback ? 'text-amber-600' : 'text-green-600'}`} />
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl border-4 border-white dark:border-gray-900 ring-8 ${deployResult.deployedViaFallback ? 'bg-amber-50 ring-amber-500/10' : 'bg-emerald-50 ring-emerald-500/10'}`}>
+                                    <div className={`p-4 rounded-full ${deployResult.deployedViaFallback ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
+                                        <Check className={`w-10 h-10 ${deployResult.deployedViaFallback ? 'text-amber-600' : 'text-emerald-600'}`} />
+                                    </div>
                                 </div>
 
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                                    {deployResult.deployedViaFallback ? 'Launched via Fallback!' : 'Launch Successful!'}
+                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                    {deployResult.deployedViaFallback ? 'Deployed via Fallback' : 'Mission Accomplished'}
                                 </h2>
-                                <p className="text-gray-500 text-sm mb-8 max-w-xs">
+                                <p className="text-gray-500 text-xs mb-8 max-w-[280px] leading-relaxed">
                                     {deployResult.deployedViaFallback
-                                        ? 'Bankr Agent was unavailable. Token deployed via Clanker SDK.'
-                                        : 'Your token is live on Base via Bankr AI Agent.'}
+                                        ? 'Bankr Agent was busy. Token successfully deployed via Clanker SDK core.'
+                                        : 'Your token is live on Base via Bankr AI Agent protocol.'}
                                 </p>
 
                                 {deployResult.txHash && (
-                                    <div className="w-full bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm mb-6 text-left relative overflow-hidden max-w-sm">
-                                        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${deployResult.deployedViaFallback ? 'from-amber-400 to-orange-500' : 'from-green-400 to-emerald-500'}`} />
+                                    <div className="w-full bg-white/50 dark:bg-gray-900/40 backdrop-blur-sm rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm mb-6 text-left relative overflow-hidden max-w-sm">
+                                        <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${deployResult.deployedViaFallback ? 'from-amber-400 to-orange-500' : 'from-emerald-400 to-teal-500'}`} />
                                         <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5">Transaction Hash</p>
                                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 cursor-pointer group hover:border-orange-200 transition-colors"
                                             onClick={() => copyField(deployResult.txHash!, 'tx')}>
