@@ -222,6 +222,7 @@ export default function HomePage() {
                           placeholder="0x..."
                           label="privateKey"
                           error={error}
+                          agentId="private-key-input"
                         />
 
                         <CLIButton
@@ -230,6 +231,7 @@ export default function HomePage() {
                           loading={isLoading}
                           fullWidth
                           icon={<Key className="w-4 h-4" />}
+                          agentId="connect-wallet-button"
                         >
                           Connect Wallet
                         </CLIButton>
@@ -281,7 +283,7 @@ export default function HomePage() {
                           <TerminalLine text="Available commands:" type="info" />
 
                           <div className="grid gap-2 sm:gap-3 mt-3 sm:mt-4">
-                            <CLICard hoverable onClick={handleDeploy} className="group">
+                            <CLICard hoverable onClick={handleDeploy} className="group" agentId="nav-deploy">
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0052FF] flex items-center justify-center flex-shrink-0">
                                   <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -294,7 +296,7 @@ export default function HomePage() {
                               </div>
                             </CLICard>
 
-                            <CLICard hoverable onClick={() => router.push('/bankr/launch')} className="group">
+                            <CLICard hoverable onClick={() => router.push('/bankr/launch')} className="group" agentId="nav-bankr-launch">
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-500 flex items-center justify-center flex-shrink-0">
                                   <Rocket className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -307,7 +309,7 @@ export default function HomePage() {
                               </div>
                             </CLICard>
 
-                            <CLICard hoverable onClick={() => router.push('/bankr')} className="group">
+                            <CLICard hoverable onClick={() => router.push('/bankr')} className="group" agentId="nav-bankr-agent">
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-500 flex items-center justify-center flex-shrink-0">
                                   <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -320,7 +322,7 @@ export default function HomePage() {
                               </div>
                             </CLICard>
 
-                            <CLICard hoverable onClick={() => router.push('/history')} className="group">
+                            <CLICard hoverable onClick={() => router.push('/history')} className="group" agentId="nav-history">
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0">
                                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -333,7 +335,7 @@ export default function HomePage() {
                               </div>
                             </CLICard>
 
-                            <CLICard hoverable onClick={() => router.push('/settings')} className="group">
+                            <CLICard hoverable onClick={() => router.push('/settings')} className="group" agentId="nav-settings">
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
                                   <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />

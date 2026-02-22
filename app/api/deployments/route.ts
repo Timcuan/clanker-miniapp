@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { findUserByTelegramId, createDeployment, updateDeployment, getDeploymentsByTelegramId, getDeploymentById } from '@/lib/db/turso';
-import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
+import { getSessionFromRequest } from '@/lib/auth/session';
 import { cookies } from 'next/headers';
 
 // Schema for creating a deployment
@@ -66,16 +66,8 @@ export async function GET(request: NextRequest) {
     // 2. Fetch Global Deployments from Clanker World API
     let globalDeployments: any[] = [];
     try {
-      // Decode session to get user's wallet address
-      const cookieStore = await cookies();
-      const sessionCookieName = getSessionCookieName(telegramUserId);
-      const sessionCookie = cookieStore.get(sessionCookieName)?.value;
-
-      let walletAddress = null;
-      if (sessionCookie) {
-        const session = decodeSession(sessionCookie);
-        walletAddress = session?.address || (session as any)?.walletAddress;
-      }
+      const session = await getSessionFromRequest(request, telegramUserId);
+      const walletAddress = session?.address || (session as any)?.walletAddress;
 
       if (walletAddress) {
         const clankerRes = await fetch(`https://www.clanker.world/api/tokens?deployer=${walletAddress}`);

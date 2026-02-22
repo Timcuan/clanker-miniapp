@@ -1,0 +1,38 @@
+ ›   Warning: --build is now the default and can safely be omitted.
+[96m[1m​[22m[39m
+[96m[1mNetlify Build                                                 [22m[39m
+[96m[1m────────────────────────────────────────────────────────────────[22m[39m
+[36m[1m​[22m[39m
+[36m[1m❯ Version[22m[39m
+  @netlify/build 35.5.14
+[36m[1m​[22m[39m
+[36m[1m❯ Flags[22m[39m
+  accountId: 686d293bab284ce0d2d8abc4
+  deployId: 69998c76489d237428abeddd
+[36m[1m​[22m[39m
+[36m[1m❯ Current directory[22m[39m
+  /Users/aaa/Clanker szn/trial 1/clanker-miniapp enhanced
+[36m[1m​[22m[39m
+[36m[1m❯ Config file[22m[39m
+  /Users/aaa/Clanker szn/trial 1/clanker-miniapp enhanced/netlify.toml
+[36m[1m​[22m[39m
+[36m[1m❯ Context[22m[39m
+  production
+[36m[1m​[22m[39m
+[36m[1m❯ Using Next.js Runtime - v5.15.8[22m[39m
+[96m[1m​[22m[39m
+[96m[1mbuild.command from netlify.toml                               [22m[39m
+[96m[1m────────────────────────────────────────────────────────────────[22m[39m
+​
+[36m$ npm run build[39m
+
+> umkm-terminal@2.2.0 build
+> next build
+
+   ▲ Next.js 15.2.6
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Skipping linting
+   Checking validity of types ...

@@ -13,6 +13,7 @@ interface CLIButtonProps {
   icon?: React.ReactNode;
   className?: string;
   fullWidth?: boolean;
+  agentId?: string;
 }
 
 export function CLIButton({
@@ -25,6 +26,7 @@ export function CLIButton({
   icon,
   className = '',
   fullWidth = false,
+  agentId,
 }: CLIButtonProps) {
   const baseStyles = 'font-mono relative overflow-hidden transition-all duration-200 flex items-center justify-center gap-2 border';
 
@@ -54,6 +56,7 @@ export function CLIButton({
       whileHover={!disabled && !loading ? { scale: 1.02 } : {}}
       whileTap={!disabled && !loading ? { scale: 0.98 } : {}}
       className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${disabledStyles} ${widthStyles} ${className}`}
+      {...(agentId && { 'data-agent': agentId })}
     >
       {/* Subtle shine effect */}
       <motion.div
@@ -85,9 +88,10 @@ interface CLICardProps {
   className?: string;
   onClick?: () => void;
   hoverable?: boolean;
+  agentId?: string;
 }
 
-export function CLICard({ children, title, className = '', onClick, hoverable = false }: CLICardProps) {
+export function CLICard({ children, title, className = '', onClick, hoverable = false, agentId }: CLICardProps) {
   const Component = onClick ? motion.button : motion.div;
 
   return (
@@ -96,6 +100,7 @@ export function CLICard({ children, title, className = '', onClick, hoverable = 
       whileHover={hoverable ? { scale: 1.01 } : {}}
       whileTap={hoverable ? { scale: 0.99 } : {}}
       className={`relative w-full text-left block bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md active:shadow-sm transition-all ${hoverable ? 'cursor-pointer' : ''} ${className}`}
+      {...(agentId && { 'data-agent': agentId })}
     >
       {title && (
         <div className="px-3 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
@@ -118,6 +123,7 @@ interface CLIInputProps {
   error?: string;
   disabled?: boolean;
   className?: string;
+  agentId?: string;
 }
 
 export function CLIInput({
@@ -129,6 +135,7 @@ export function CLIInput({
   error,
   disabled = false,
   className = '',
+  agentId,
 }: CLIInputProps) {
   return (
     <div className={`space-y-1.5 sm:space-y-2 ${className}`}>
@@ -146,6 +153,7 @@ export function CLIInput({
           disabled={disabled}
           className={`w-full bg-white dark:bg-gray-900 border ${error ? 'border-red-300 dark:border-red-500/50 bg-red-50/50 dark:bg-red-950/20' : 'border-gray-200 dark:border-gray-800'} rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 font-mono text-xs sm:text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-[#0052FF] focus:ring-2 focus:ring-[#0052FF]/20 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           style={{ caretColor: '#0052FF' }}
+          {...(agentId && { 'data-agent': agentId })}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-[10px] sm:text-xs">
           {type === 'password' ? '••••' : ''}

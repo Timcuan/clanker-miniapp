@@ -68,11 +68,11 @@ const STORAGE_KEY = 'bankr_launch_v3';
 // ─── Sub-Components ─────────────────────────────────────────────────────────────
 
 function MobileInput({
-    label, value, onChange, placeholder, error, multiline = false, uppercase = false, hint,
+    label, value, onChange, placeholder, error, multiline = false, uppercase = false, hint, agentId,
 }: {
     label: string; value: string; onChange: (v: string) => void;
     placeholder: string; error?: string; multiline?: boolean;
-    uppercase?: boolean; hint?: string;
+    uppercase?: boolean; hint?: string; agentId?: string;
 }) {
     const handlePaste = async () => {
         try {
@@ -94,10 +94,12 @@ function MobileInput({
             <div className="relative">
                 {multiline ? (
                     <textarea value={value} onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
-                        placeholder={placeholder} rows={2} className={cls + ' resize-none'} />
+                        placeholder={placeholder} rows={2} className={cls + ' resize-none'}
+                        {...(agentId && { 'data-agent': agentId })} />
                 ) : (
                     <input type="text" value={value} onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
-                        placeholder={placeholder} className={cls} />
+                        placeholder={placeholder} className={cls}
+                        {...(agentId && { 'data-agent': agentId })} />
                 )}
                 <button type="button" onClick={handlePaste}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors">
@@ -496,18 +498,18 @@ export default function BankrLaunchPage() {
                                             </div>
                                             {/* USDC Balance */}
                                             <div className={`flex-1 p-2.5 rounded-lg border flex flex-col justify-center min-w-0 ${usdcBalance === null
-                                                    ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700'
-                                                    : parseFloat(usdcBalance) >= 0.10
-                                                        ? 'bg-emerald-50/80 dark:bg-emerald-500/10 border-emerald-200/70 dark:border-emerald-500/20'
-                                                        : 'bg-red-50/80 dark:bg-red-500/10 border-red-200/70 dark:border-red-500/20'
+                                                ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700'
+                                                : parseFloat(usdcBalance) >= 0.10
+                                                    ? 'bg-emerald-50/80 dark:bg-emerald-500/10 border-emerald-200/70 dark:border-emerald-500/20'
+                                                    : 'bg-red-50/80 dark:bg-red-500/10 border-red-200/70 dark:border-red-500/20'
                                                 }`}>
                                                 <span className={`font-mono text-[9px] uppercase tracking-wider font-bold ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
-                                                        : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-600/70 dark:text-emerald-400/70'
-                                                            : 'text-red-500/70 dark:text-red-400/70'
+                                                    : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-600/70 dark:text-emerald-400/70'
+                                                        : 'text-red-500/70 dark:text-red-400/70'
                                                     }`}>USDC</span>
                                                 <span className={`font-mono text-xs font-bold truncate ${usdcBalance === null ? 'text-gray-400 dark:text-gray-500'
-                                                        : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-700 dark:text-emerald-400'
-                                                            : 'text-red-600 dark:text-red-400'
+                                                    : parseFloat(usdcBalance) >= 0.10 ? 'text-emerald-700 dark:text-emerald-400'
+                                                        : 'text-red-600 dark:text-red-400'
                                                     }`}>
                                                     {usdcBalance === null ? '···' : `$${parseFloat(usdcBalance).toFixed(2)}`}
                                                 </span>
@@ -525,8 +527,8 @@ export default function BankrLaunchPage() {
 
                                         <button type="button" onClick={() => { setIsAdvanced(!isAdvanced); hapticFeedback('light'); }}
                                             className={`p-2.5 rounded-lg border flex items-center gap-2 transition-all ${isAdvanced
-                                                    ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600 text-gray-800 dark:text-gray-100'
-                                                    : 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                                                ? 'bg-gray-100 border-gray-300 dark:bg-gray-800 dark:border-gray-600 text-gray-800 dark:text-gray-100'
+                                                : 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                                             <Settings className="w-4 h-4" />
                                             <span className="font-mono text-[10px] font-medium">{isAdvanced ? 'ADVANCED' : 'BASIC'}</span>
                                         </button>
@@ -538,12 +540,12 @@ export default function BankrLaunchPage() {
                                             <div className="flex-1">
                                                 <MobileInput label="name" value={config.name}
                                                     onChange={v => setConfig(p => ({ ...p, name: v }))}
-                                                    placeholder="My Token" error={errors.name} />
+                                                    placeholder="My Token" error={errors.name} agentId="bankr-name-input" />
                                             </div>
                                             <div className="w-1/3">
                                                 <MobileInput label="symbol" value={config.symbol}
                                                     onChange={v => setConfig(p => ({ ...p, symbol: v }))}
-                                                    placeholder="TKN" uppercase error={errors.symbol} />
+                                                    placeholder="TKN" uppercase error={errors.symbol} agentId="bankr-symbol-input" />
                                             </div>
                                         </div>
 
@@ -600,7 +602,7 @@ export default function BankrLaunchPage() {
                                                 <MobileInput label="launcher_handle" value={config.launcher}
                                                     onChange={v => setConfig(p => ({ ...p, launcher: v }))}
                                                     placeholder={getPlaceholder(config.launcherType)} error={errors.launcher}
-                                                    hint={`Appears as the public launcher identity on bankr.bot`} />
+                                                    hint={`Appears as the public launcher identity on bankr.bot`} agentId="bankr-launcher-input" />
                                             </div>
                                         </CollapsibleSection>
 
@@ -620,7 +622,7 @@ export default function BankrLaunchPage() {
                                                 <MobileInput label="fee_to_handle" value={config.dashboardFee}
                                                     onChange={v => setConfig(p => ({ ...p, dashboardFee: v }))}
                                                     placeholder={getPlaceholder(config.dashboardFeeType)} error={errors.dashboardFee}
-                                                    hint={`Shown as FEE TO on bankr.bot — display only, fees go to your wallet below`} />
+                                                    hint={`Shown as FEE TO on bankr.bot — display only, fees go to your wallet below`} agentId="bankr-fee-input" />
 
                                                 <OptionSelector label="Tax Mode" value={config.taxType}
                                                     options={['dynamic', 'static']}
@@ -692,10 +694,11 @@ export default function BankrLaunchPage() {
 
                                     {/* CTA */}
                                     <div className="flex gap-3 mt-6">
-                                        <CLIButton variant="ghost" onClick={() => router.push('/')}>Cancel</CLIButton>
+                                        <CLIButton variant="ghost" onClick={() => router.push('/')} agentId="bankr-cancel-button">Cancel</CLIButton>
                                         <CLIButton variant="primary" onClick={handleReview} fullWidth
                                             icon={<Rocket className="w-4 h-4" />}
-                                            className="!bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20">
+                                            className="!bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20"
+                                            agentId="bankr-review-button">
                                             Review
                                         </CLIButton>
                                     </div>
@@ -742,10 +745,11 @@ export default function BankrLaunchPage() {
                                     )}
 
                                     <div className="flex gap-3 mt-6">
-                                        <CLIButton variant="ghost" onClick={() => setStep('form')}>Edit</CLIButton>
+                                        <CLIButton variant="ghost" onClick={() => setStep('form')} agentId="bankr-edit-button">Edit</CLIButton>
                                         <CLIButton variant="primary" onClick={handleDeploy} fullWidth
                                             icon={<Rocket className="w-4 h-4" />} loading={isDeploying}
-                                            className="!bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20">
+                                            className="!bg-orange-500 hover:!bg-orange-600 shadow-lg shadow-orange-500/20"
+                                            agentId="bankr-confirm-button">
                                             Launch Now
                                         </CLIButton>
                                     </div>

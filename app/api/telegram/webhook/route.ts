@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAdminUser, grantAccess, revokeAccess, verifyAccess, sendAdminLog } from '@/lib/access-control';
 import { initDatabase, findUserByTelegramId, createUser, updateUser, getUserStats } from '@/lib/db/turso';
+import { ipfsService } from '@/lib/ipfs/service';
 
 function getEnv(key: string, fallback = '') {
   return process.env[key] || fallback;
 }
 
 const APP_URL = getEnv('NEXT_PUBLIC_APP_URL', 'https://clanker-terminal.netlify.app');
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 
 interface Btn { text: string; web_app?: { url: string }; callback_data?: string; }
 interface TgUpdate {
-
   update_id: number;
-  message?: { from: { id: number; first_name: string; username?: string }; chat: { id: number; type: string }; text?: string };
+  message?: {
+    message_id: number;
+    from: { id: number; first_name: string; username?: string };
+    chat: { id: number; type: string };
+    text?: string;
+    photo?: { file_id: string; file_unique_id: string; width: number; height: number; file_size?: number }[];
+  };
   callback_query?: { id: string; from: { id: number; first_name: string; username?: string }; message?: { chat: { id: number } }; data?: string };
 }
 
@@ -156,6 +162,52 @@ export async function POST(req: NextRequest) {
       }
     } else if (chatId === uid) {
       await msg(chatId, 'Type /start', { reply_markup: kb([[{ text: '🖥 Open Terminal', web_app: { url: APP_URL } }]]) });
+    }
+  }
+
+  // ── Photos / Images ───────────────────────────────────────────────────────
+  if (update.message?.photo) {
+    const isAdmin = isAdminUser(uid);
+    const hasAccess = isAdmin || await getAccess(uid);
+
+    // Check auth
+    if (!hasAccess) {
+      await msg(chatId, `🚫 You do not have access to use this bot's features.`);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Acknowledge receipt
+    await msg(chatId, '⚙️ <i>Processing image and uploading to decentralized storage...</i>');
+
+    try {
+      // Telegram sends multiple sizes. The last element is the highest resolution.
+      const largestPhoto = update.message.photo[update.message.photo.length - 1];
+      const fileId = largestPhoto.file_id;
+
+      // 1. Get file path from Telegram
+      const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+      if (!r.ok) throw new Error('Failed to fetch file path from Telegram API');
+
+      const fileData = await r.json();
+      if (!fileData.ok) throw new Error(fileData.description || 'Telegram getFile returned false');
+
+      const filePath = fileData.result.file_path;
+      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+
+      // 2. Upload using IPFSService (automatically handles URL downloads directly to FreeImage/Catbox)
+      const { ipfsUrl } = await ipfsService.uploadImage(fileUrl);
+
+      // 3. Reply with the URL (MarkdownV2 or HTML for easy copying)
+      await msg(chatId,
+        `✅ <b>Image Uploaded Successfully!</b>\n\n` +
+        `🌐 <b>URL:</b>\n<code>${ipfsUrl}</code>\n\n` +
+        `<i>Tap the link above to copy it, then paste it into the Terminal when deploying your token.</i>`,
+        { reply_to_message_id: update.message?.message_id || undefined } // Added optional reply mapping
+      );
+
+    } catch (e: any) {
+      console.error('[tg-photo-handler]', e);
+      await msg(chatId, `❌ <b>Failed to process image:</b> ${e.message}`);
     }
   }
 

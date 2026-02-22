@@ -6,7 +6,7 @@ import { decodeSession, getSessionCookieName } from '@/lib/serverless-db';
 import { clankerService } from '@/lib/clanker/sdk';
 import { bankrService } from '@/lib/bankr/sdk';
 import { MevModuleType } from '@/lib/clanker/constants';
-import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
+import { getSessionFromRequest } from '@/lib/auth/session';
 
 
 const DeploySchema = z.object({
@@ -32,19 +32,9 @@ const DeploySchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const telegramUserId = await getTelegramUserIdFromRequest(request);
-        const sessionCookieName = getSessionCookieName(telegramUserId);
-
-        const cookieStore = await cookies();
-        const sessionCookie = cookieStore.get(sessionCookieName)?.value;
-
-        if (!sessionCookie) {
-            return NextResponse.json({ error: 'Unauthorized: No session found. Please reconnect.' }, { status: 401 });
-        }
-
-        const session = decodeSession(sessionCookie);
+        const session = await getSessionFromRequest(request);
         if (!session || !session.privateKey) {
-            return NextResponse.json({ error: 'Unauthorized: Invalid session. Please reconnect.' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized: Invalid session or Agent Key. Please reconnect.' }, { status: 401 });
         }
 
         const body = await request.json();

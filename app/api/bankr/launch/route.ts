@@ -6,7 +6,7 @@ import { bankrService } from '@/lib/bankr/sdk';
 import { clankerService, MevModuleType } from '@/lib/clanker/sdk';
 import { sweepFunds } from '@/lib/bankr/x402';
 import { sendAdminLog } from '@/lib/access-control';
-import { getTelegramUserIdFromRequest } from '@/lib/auth/session';
+import { getSessionFromRequest } from '@/lib/auth/session';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient, http, parseEther, formatEther } from 'viem';
 import { base } from 'viem/chains';
@@ -49,18 +49,9 @@ export async function POST(request: NextRequest) {
     let session: { address: string; privateKey: string } | null = null;
 
     try {
-        const telegramUserId = await getTelegramUserIdFromRequest(request);
-        const sessionCookieName = getSessionCookieName(telegramUserId);
-        const cookieStore = await cookies();
-        const sessionCookie = cookieStore.get(sessionCookieName)?.value;
-
-        if (!sessionCookie) {
-            return NextResponse.json({ error: 'Unauthorized: No session. Please reconnect.' }, { status: 401 });
-        }
-
-        const decoded = decodeSession(sessionCookie);
+        const decoded = await getSessionFromRequest(request);
         if (!decoded || !decoded.privateKey) {
-            return NextResponse.json({ error: 'Unauthorized: Invalid session. Please reconnect.' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized: Invalid session or Agent Key. Please reconnect.' }, { status: 401 });
         }
         session = decoded as { address: string; privateKey: string };
     } catch (authError) {

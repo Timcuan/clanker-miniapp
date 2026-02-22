@@ -7,9 +7,14 @@ import { decodeSession, getSessionCookieName, SessionData } from '@/lib/serverle
  * 1. Headers (x-telegram-user-id)
  * 2. Query Parameters (telegramUserId)
  * 3. Cookies (clanker_session_*)
+ * 4. Agent Key (x-agent-key) - Bypasses TG auth
  * @param request The NextRequest object.
  * @returns The Telegram User ID or undefined if not found.
  */
+export function getAgentKeyFromRequest(request: NextRequest): string | undefined {
+    return request.headers.get('x-agent-key') || undefined;
+}
+
 export async function getTelegramUserIdFromRequest(request: NextRequest): Promise<number | undefined> {
     // 1. Check header first (explicitly set by client)
     const headerUserId = request.headers.get('x-telegram-user-id');
@@ -51,6 +56,14 @@ export async function getTelegramUserIdFromRequest(request: NextRequest): Promis
  * @returns The SessionData or null if not valid.
  */
 export async function getSessionFromRequest(request: NextRequest, telegramUserId?: number): Promise<SessionData | null> {
+    // Check for agent key first (Tier 2)
+    const agentKey = getAgentKeyFromRequest(request);
+    if (agentKey) {
+        // For agents, we decode the session directly from the key
+        // The agent key is expected to be a valid encrypted session string
+        return decodeSession(agentKey);
+    }
+
     const userId = telegramUserId || await getTelegramUserIdFromRequest(request);
     if (!userId) return null;
 

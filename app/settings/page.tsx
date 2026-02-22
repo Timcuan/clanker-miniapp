@@ -138,7 +138,8 @@ export default function SettingsPage() {
           </h2>
           <motion.button whileTap={{ scale: 0.98 }}
             onClick={() => { router.push('/settings/wallets'); hapticFeedback('light'); }}
-            className="w-full bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between hover:border-[#0052FF] dark:hover:border-[#0052FF]/60 transition-all group shadow-sm text-left">
+            className="w-full bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between hover:border-[#0052FF] dark:hover:border-[#0052FF]/60 transition-all group shadow-sm text-left"
+            data-agent="settings-wallets-button">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 flex items-center justify-center">
                 <Wallet className="w-5 h-5 text-[#0052FF]" />
@@ -164,7 +165,7 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200">Auto-fill Template</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Automatically load saved config on deploy screen</p>
               </div>
-              <button onClick={() => setAutoFill(!autoFill)} className={toggle(autoFill, 'bg-[#0052FF]')}>
+              <button onClick={() => setAutoFill(!autoFill)} className={toggle(autoFill, 'bg-[#0052FF]')} data-agent="settings-autofill-toggle">
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${autoFill ? 'left-5' : 'left-1'}`} />
               </button>
             </div>
@@ -174,7 +175,7 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-medium text-gray-800 dark:text-gray-200">Advanced Mode</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Show advanced deployment settings by default</p>
               </div>
-              <button onClick={() => setAdvancedMode(!advancedMode)} className={toggle(advancedMode, 'bg-purple-500')}>
+              <button onClick={() => setAdvancedMode(!advancedMode)} className={toggle(advancedMode, 'bg-purple-500')} data-agent="settings-advanced-toggle">
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${advancedMode ? 'left-5' : 'left-1'}`} />
               </button>
             </div>
@@ -189,7 +190,7 @@ export default function SettingsPage() {
                   <span className="text-amber-500 dark:text-amber-400">Private Keys are never synced.</span>
                 </p>
               </div>
-              <button onClick={() => setCloudSync(!cloudSync)} className={toggle(cloudSync, 'bg-sky-500')}>
+              <button onClick={() => setCloudSync(!cloudSync)} className={toggle(cloudSync, 'bg-sky-500')} data-agent="settings-cloudsync-toggle">
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${cloudSync ? 'left-5' : 'left-1'}`} />
               </button>
             </div>
@@ -275,7 +276,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-red-500/80 dark:text-red-400/80 mt-1 max-w-xs">Irreversibly delete all local wallets, network settings, and preferences from this device.</p>
               </div>
               <button onClick={handleClearData}
-                className="bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all shadow-sm">
+                className="bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all shadow-sm"
+                data-agent="settings-reset-button">
                 Clear Local Data
               </button>
             </div>

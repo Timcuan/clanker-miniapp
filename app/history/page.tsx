@@ -217,6 +217,7 @@ export default function HistoryPage() {
             whileTap={{ scale: 0.95 }}
             onClick={fetchDeployments}
             className="p-2 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+            data-agent="history-refresh-button"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </motion.button>
@@ -238,6 +239,7 @@ export default function HistoryPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border border-clanker-primary/30 bg-clanker-primary/10 hover:bg-clanker-primary/20 text-clanker-primary font-mono font-bold text-sm shadow-lg shadow-clanker-primary/5 transition-all active:scale-[0.98]"
+                data-agent="history-discover-button"
               >
                 <ExternalLink className="w-5 h-5" />
                 Discover on Defined.fi

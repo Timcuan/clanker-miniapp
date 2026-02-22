@@ -224,7 +224,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 // Mobile-optimized input component
 function MobileInput({
-  label, value, onChange, placeholder, error, multiline = false, uppercase = false, hint,
+  label, value, onChange, placeholder, error, multiline = false, uppercase = false, hint, agentId,
 }: {
   label: string;
   value: string;
@@ -234,6 +234,7 @@ function MobileInput({
   multiline?: boolean;
   uppercase?: boolean;
   hint?: string;
+  agentId?: string;
 }) {
   const handlePaste = async () => {
     try {
@@ -262,6 +263,7 @@ function MobileInput({
             placeholder={placeholder}
             rows={2}
             className={inputClass + ' resize-none'}
+            {...(agentId && { 'data-agent': agentId })}
           />
         ) : (
           <input
@@ -270,6 +272,7 @@ function MobileInput({
             onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
             placeholder={placeholder}
             className={inputClass}
+            {...(agentId && { 'data-agent': agentId })}
           />
         )}
         <button
@@ -967,6 +970,7 @@ export default function DeployPage() {
                           placeholder="My Token"
                           error={errors.name}
                           hint="Token name (max 32 chars)"
+                          agentId="deploy-name-input"
                         />
                       </div>
                       <div className="w-1/3">
@@ -978,6 +982,7 @@ export default function DeployPage() {
                           error={errors.symbol}
                           uppercase
                           hint="Max 10 chars"
+                          agentId="deploy-symbol-input"
                         />
                       </div>
                     </div>
@@ -989,6 +994,7 @@ export default function DeployPage() {
                       placeholder="Token description..."
                       multiline
                       hint="Shown on clanker.world (Optional)"
+                      agentId="deploy-description-input"
                     />
 
                     {/* Image with Pinata */}
@@ -1004,6 +1010,7 @@ export default function DeployPage() {
                         onChange={(v) => setConfig(p => ({ ...p, image: v }))}
                         placeholder="CID or Image URL"
                         error={errors.image}
+                        agentId="deploy-image-input"
                       />
                       {config.image && (
                         <div className="flex gap-3 items-center p-2 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
@@ -1027,11 +1034,11 @@ export default function DeployPage() {
                   <div className="space-y-3">
                     <CollapsibleSection title="Social Links (Optional)" icon={Globe}>
                       <div className="grid grid-cols-1 gap-3">
-                        <MobileInput label="website" value={config.website} onChange={(v) => setConfig(p => ({ ...p, website: v }))} placeholder="https://..." error={errors.website} />
-                        <MobileInput label="twitter" value={config.twitter} onChange={(v) => setConfig(p => ({ ...p, twitter: v }))} placeholder="@handle or URL" error={errors.twitter} />
-                        <MobileInput label="telegram" value={config.telegram} onChange={(v) => setConfig(p => ({ ...p, telegram: v }))} placeholder="@handle or URL" error={errors.telegram} />
-                        <MobileInput label="farcaster" value={config.farcaster} onChange={(v) => setConfig(p => ({ ...p, farcaster: v }))} placeholder="@handle or URL" error={errors.farcaster} />
-                        <MobileInput label="github" value={config.github} onChange={(v) => setConfig(p => ({ ...p, github: v }))} placeholder="https://..." error={errors.github} />
+                        <MobileInput label="website" value={config.website} onChange={(v) => setConfig(p => ({ ...p, website: v }))} placeholder="https://..." error={errors.website} agentId="deploy-website-input" />
+                        <MobileInput label="twitter" value={config.twitter} onChange={(v) => setConfig(p => ({ ...p, twitter: v }))} placeholder="@handle or URL" error={errors.twitter} agentId="deploy-twitter-input" />
+                        <MobileInput label="telegram" value={config.telegram} onChange={(v) => setConfig(p => ({ ...p, telegram: v }))} placeholder="@handle or URL" error={errors.telegram} agentId="deploy-telegram-input" />
+                        <MobileInput label="farcaster" value={config.farcaster} onChange={(v) => setConfig(p => ({ ...p, farcaster: v }))} placeholder="@handle or URL" error={errors.farcaster} agentId="deploy-farcaster-input" />
+                        <MobileInput label="github" value={config.github} onChange={(v) => setConfig(p => ({ ...p, github: v }))} placeholder="https://..." error={errors.github} agentId="deploy-github-input" />
                       </div>
                     </CollapsibleSection>
 
@@ -1131,8 +1138,8 @@ export default function DeployPage() {
                   </div>
 
                   <div className="flex gap-3 mt-6">
-                    <CLIButton variant="ghost" onClick={() => router.push('/')}>Cancel</CLIButton>
-                    <CLIButton variant="primary" onClick={handleReview} fullWidth icon={<Rocket className="w-4 h-4" />}>Review</CLIButton>
+                    <CLIButton variant="ghost" onClick={() => router.push('/')} agentId="deploy-cancel-button">Cancel</CLIButton>
+                    <CLIButton variant="primary" onClick={handleReview} fullWidth icon={<Rocket className="w-4 h-4" />} agentId="deploy-review-button">Review</CLIButton>
                   </div>
                 </Terminal>
               </motion.div>
@@ -1235,8 +1242,8 @@ export default function DeployPage() {
                     </div>
                   </CLICard>
                   <div className="flex gap-3 mt-6">
-                    <CLIButton variant="ghost" onClick={() => setStep('form')}>Edit</CLIButton>
-                    <CLIButton variant="primary" onClick={handleDeploy} fullWidth icon={<Rocket className="w-4 h-4" />} loading={isDeploying}>Deploy Now</CLIButton>
+                    <CLIButton variant="ghost" onClick={() => setStep('form')} agentId="deploy-edit-button">Edit</CLIButton>
+                    <CLIButton variant="primary" onClick={handleDeploy} fullWidth icon={<Rocket className="w-4 h-4" />} loading={isDeploying} agentId="deploy-confirm-button">Deploy Now</CLIButton>
                   </div>
                 </Terminal>
               </motion.div>
